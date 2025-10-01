@@ -12,8 +12,14 @@ This repository contains the code, reports and documentation needed for a user t
 
 Read the MATLAB/Python code and see what you can understand. DO NOT COPY, try it yourself. 
 
+# TODO
+
+1. Need to build and use DSP library, verify toml file actually works instead of using setup.py
+2. Go through and write solutions for Exercises in both matlab and python. (Needs to be done by 17th October).
+
 ## Queries and Contact
 
 Documentation for the custom library that I am using will be linked here:
 
 Email: SahasT23@protonmail.com
+
