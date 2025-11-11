@@ -1,5 +1,4 @@
 # Ignore whole folders
-EEE3030_Assignments/
 .vscode/
 
 # Ignore LaTeX build files everywhere
