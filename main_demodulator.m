@@ -3,7 +3,7 @@
 clear; close all; clc;
 
 % Load the AM signal
-[signal, fs] = audioread('Sahas_Talasila.wav');  % Replace with your actual filename
+[signal, fs] = audioread('Sahas_Talasila.wav'); % Loading audio file
 signal = signal(:);  % Ensure column vector
 
 % Display basic information
@@ -12,6 +12,9 @@ fprintf('Signal length: %d samples\n', length(signal));
 fprintf('Duration: %.2f seconds\n', length(signal)/fs);
 
 % %% Time Domain Plot
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % t = (0:length(signal)-1) / fs;  % Time vector in seconds
 
 % figure('Position', [100 100 1200 400]);
@@ -44,7 +47,7 @@ f = (0:N/2) * df;
 % Take single-sided spectrum (positive frequencies only)
 signal_fft_single = signal_fft(1:N/2+1);
 
-% Amplitude normalization (convert to actual amplitudes)
+% Amplitude normalisation (convert to actual amplitudes)
 signal_amplitude = abs(signal_fft_single) / N;
 signal_amplitude(2:end-1) = 2 * signal_amplitude(2:end-1);  % Double non-DC components
 
@@ -54,6 +57,9 @@ signal_dB = 20 * log10(signal_amplitude + eps);  % eps prevents log(0)
 fprintf('\nFrequency resolution: %.2f Hz\n', df);
 
 % %% Plot Frequency Spectrum
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % figure('Position', [100 100 1200 500]);
 % plot(f/1000, signal_dB, 'b', 'LineWidth', 1);
 % xlabel('Frequency (kHz)', 'FontSize', 12);
@@ -80,16 +86,16 @@ fprintf('\nFrequency resolution: %.2f Hz\n', df);
 window_rect = ones(N, 1);
 signal_rect = signal .* window_rect;
 
-% 2. Hamming window - good general purpose, moderate sidelobe suppression
+% 2. Hamming window 
 window_hamming = hamming(N);
 signal_hamming = signal .* window_hamming;
 
-% 3. Kaiser window - adjustable sidelobe suppression (beta=8 for ~50dB)
+% 3. Kaiser window - adjustable sidelobe suppression (beta=8 for 50dB)
 beta = 8;  % Shape parameter - higher = more sidelobe suppression
 window_kaiser = kaiser(N, beta);
 signal_kaiser = signal .* window_kaiser;
 
-% 4. Blackman window - excellent sidelobe suppression, wider main lobe
+% 4. Blackman window - better sidelobe suppression, wider main lobe
 window_blackman = blackman(N);
 signal_blackman = signal .* window_blackman;
 
@@ -111,7 +117,7 @@ corr_hamming = sum(window_hamming) / N;
 corr_kaiser = sum(window_kaiser) / N;
 corr_blackman = sum(window_blackman) / N;
 
-% Amplitude normalization with window correction
+% Amplitude normalisation with window correction
 amp_rect = abs(fft_rect_single) / N / corr_rect;
 amp_hamming = abs(fft_hamming_single) / N / corr_hamming;
 amp_kaiser = abs(fft_kaiser_single) / N / corr_kaiser;
@@ -129,7 +135,10 @@ dB_hamming = 20 * log10(amp_hamming + eps);
 dB_kaiser = 20 * log10(amp_kaiser + eps);
 dB_blackman = 20 * log10(amp_blackman + eps);
 
-% %% Visualize Window Functions in Time Domain
+% %% visualise Window Functions in Time Domain
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % figure('Position', [100 100 1200 600]);
 
 % subplot(2,2,1);
@@ -167,6 +176,9 @@ dB_blackman = 20 * log10(amp_blackman + eps);
 % sgtitle('Window Function Shapes in Time Domain', 'FontSize', 14, 'FontWeight', 'bold');
 
 % %% Compare Spectral Results
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % figure('Position', [100 100 1400 800]);
 
 % % Full spectrum comparison
@@ -300,11 +312,11 @@ fprintf('Mean fc: %.2f kHz\n', fc_mean/1000);
 fprintf('Std dev: %.2f Hz (%.4f kHz)\n', fc_std, fc_std/1000);
 fprintf('Consistency: ');
 if fc_std < 100
-    fprintf('EXCELLENT (< 100 Hz variation)\n');
+    fprintf('Good (< 100 Hz variation)\n');
 elseif fc_std < 500
-    fprintf('GOOD (< 500 Hz variation)\n');
+    fprintf('OK (< 500 Hz variation)\n');
 else
-    fprintf('MODERATE (check signal quality)\n');
+    fprintf('(check signal quality)\n');
 end
 
 fprintf('- Rectangular: has best freq resolution but noisy\n');
@@ -313,6 +325,9 @@ fprintf('- Kaiser (BETA=8): Similar to Hamming, tunable\n');
 fprintf('- Blackman: Cleanest but over-smoothed\n');
 
 % % Store the chosen window results
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % fmin = fmin_hamming;
 % fmax = fmax_hamming;
 % fc_estimated = fc_hamming;
@@ -345,9 +360,7 @@ fprintf('- Blackman: Cleanest but over-smoothed\n');
 % legend('Signal Spectrum', 'f_{min}', 'f_{max}', 'f_c (estimated)', ...
 %     'Detection Threshold', 'Location', 'best', 'FontSize', 10);
 
-%% ===================================================================
 %% TASK 2: FIR Bandpass Filter Design
-%% ===================================================================
 
 % Load results from Task 1
 load('task1_results.mat');
@@ -398,9 +411,9 @@ M = N_estimated;
 n = 0:M-1;  % Sample indices
 
 %% Design Ideal Bandpass Impulse Response
-% Normalize frequencies to [0, 1] where 1 is Nyquist (fs/2)
-wc1 = 2 * fp1 / fs;  % Normalized lower cutoff
-wc2 = 2 * fp2 / fs;  % Normalized upper cutoff
+% Normalise frequencies to [0, 1] where 1 is Nyquist (fs/2)
+wc1 = 2 * fp1 / fs;  % Normalised lower cutoff
+wc2 = 2 * fp2 / fs;  % Normalised upper cutoff
 
 % Center point of filter
 M_center = (M - 1) / 2;
@@ -431,6 +444,9 @@ fprintf('Hamming window applied\n');
 fprintf('Final filter length: %d taps\n', length(h_fir));
 
 %% Verify Filter Frequency Response
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % % Compute frequency response (use FFT for efficiency)
 % N_fft = 8192;  % Zero-padding for smooth frequency response
 % H = fft(h_fir, N_fft);
@@ -487,13 +503,16 @@ signal_filtered_windowed = signal_filtered .* window_analysis;
 fft_windowed = fft(signal_filtered_windowed);
 fft_windowed_single = fft_windowed(1:N_sig/2+1);
 
-% Normalize
+% Normalise
 corr = sum(window_analysis) / N_sig;
 amp_filtered = abs(fft_windowed_single) / N_sig / corr;
 amp_filtered(2:end-1) = 2 * amp_filtered(2:end-1);
 dB_filtered = 20 * log10(amp_filtered + eps);
 
 % % Single plot showing before and after
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % figure('Position', [100 100 1000 600]);
 % plot(f/1000, dB_hamming, 'r', 'LineWidth', 1, 'DisplayName', 'Original Signal');
 % hold on;
@@ -525,9 +544,7 @@ fprintf('Filter order: %d taps\n', M);
 fprintf('Results saved to task2_results.mat\n');
 fprintf('Ready for Task 3\n\n');
 
-%% ===================================================================
 %% TASK 3: Carrier Recovery and Mixing
-%% ===================================================================
 
 % Load results from previous tasks
 load('task1_results.mat');
@@ -569,7 +586,7 @@ squared_fft_single = squared_fft(1:N/2+1);
 % Frequency vector
 f = (0:N/2) * fs / N;
 
-% Normalize amplitude
+% Normalise amplitude
 window_corr = sum(window) / N;
 amp_squared = abs(squared_fft_single) / N / window_corr;
 amp_squared(2:end-1) = 2 * amp_squared(2:end-1);
@@ -686,9 +703,7 @@ fprintf('Recovered carrier frequency: %.2f kHz\n', fc_recovered/1000);
 fprintf('Mixed signal ready for lowpass filtering (Task 4)\n');
 fprintf('Results saved to task3_results.mat\n\n');
 
-%% ===================================================================
 %% TASK 4: IIR Lowpass Filter Design
-%% ===================================================================
 
 % Load results from Task 3
 load('task3_results.mat');
@@ -708,10 +723,10 @@ fprintf('Order: %d\n', filter_order);
 fprintf('Cutoff frequency: %.0f Hz (%.1f kHz)\n', cutoff_freq, cutoff_freq/1000);
 fprintf('Type: %s\n', filter_type);
 
-% Normalize cutoff frequency (Wn must be between 0 and 1, where 1 is Nyquist)
+% Normalise cutoff frequency (Wn must be between 0 and 1, where 1 is Nyquist)
 Wn = cutoff_freq / (fs/2);
 
-fprintf('Normalized cutoff frequency: %.4f\n', Wn);
+fprintf('Normalised cutoff frequency: %.4f\n', Wn);
 
 % Design Butterworth filter - get coefficients
 [b, a] = butter(filter_order, Wn, 'low');
@@ -785,7 +800,7 @@ fprintf('\nVerification: Max difference between MATLAB and custom = %.2e\n', dif
 if difference < 1e-10
     fprintf(' Both methods match \n');
 elseif difference < 1e-6
-    fprintf('✓ GOOD: Both methods match (minor numerical differences)\n');
+    fprintf('Both methods match (minor numerical differences)\n');
 else
     warning('Methods differ significantly - check implementation');
 end
@@ -827,7 +842,7 @@ demod_fft_single = demod_fft(1:N/2+1);
 % Frequency vector
 f = (0:N/2) * fs / N;
 
-% Normalize
+% Normalise
 window_corr = sum(window) / N;
 amp_demod = abs(demod_fft_single) / N / window_corr;
 amp_demod(2:end-1) = 2 * amp_demod(2:end-1);
@@ -877,7 +892,7 @@ dB_mixed = 20 * log10(amp_mixed + eps);
 % grid on;
 % xlim([0 50]);
 
-%% Save Results for Task 5
+% Save Results for Task 5
 results_task4.signal_demod = signal_demod;
 results_task4.b = b;
 results_task4.a = a;
@@ -887,9 +902,7 @@ results_task4.cutoff_freq = cutoff_freq;
 save('task4_results.mat', 'results_task4');
 fprintf('Results saved to task4_results.mat\n\n');
 
-%% ===================================================================
-%% TASK 5: Phase Optimization and Audio Output
-%% ===================================================================
+%% TASK 5: Phase optimisation and Audio Output
 
 % Load all previous results
 load('task1_results.mat');
@@ -924,7 +937,7 @@ fprintf('\nInitial phase phi = 0:\n');
 fprintf('Peak amplitude: %.4f\n', peak_amp_initial);
 fprintf('RMS amplitude: %.4f\n', rms_initial);
 
-%% Phase Optimization - Sweep from 0 to pi
+%% Phase optimisation - Sweep from 0 to pi
 fprintf('\n phase sweep from 0 to pi radians\n');
 
 % Phase values to test
@@ -974,7 +987,10 @@ fprintf('Improvement over phi = 0: %.2f%%\n', 100*(max_peak/peak_amp_initial - 1
 fprintf('\nOptimal phase (RMS): phi = %.4f rad (%.2f°)\n', phi_optimal_rms, rad2deg(phi_optimal_rms));
 fprintf('Maximum RMS amplitude: %.4f\n', max_rms);
 
-% % Plot phase optimization curve
+% % Plot phase optimisation curve
+
+% This code has been commented out to reduce plotting during automated runs.
+
 % figure('Position', [100 100 1000 600]);
 
 % subplot(2,1,1);
@@ -983,7 +999,7 @@ fprintf('Maximum RMS amplitude: %.4f\n', max_rms);
 % plot(rad2deg(phi_optimal), max_peak, 'ro', 'MarkerSize', 10, 'LineWidth', 2);
 % xlabel('Phase φ (degrees)', 'FontSize', 12);
 % ylabel('Peak Amplitude', 'FontSize', 12);
-% title('Phase Optimization - Peak Amplitude', 'FontSize', 14);
+% title('Phase optimisation - Peak Amplitude', 'FontSize', 14);
 % grid on;
 % text(rad2deg(phi_optimal), max_peak*1.05, sprintf('  Optimal: %.1f°', rad2deg(phi_optimal)), ...
 %     'FontSize', 10, 'FontWeight', 'bold', 'Color', 'r');
@@ -994,7 +1010,7 @@ fprintf('Maximum RMS amplitude: %.4f\n', max_rms);
 % plot(rad2deg(phi_optimal_rms), max_rms, 'ro', 'MarkerSize', 10, 'LineWidth', 2);
 % xlabel('Phase phi (degrees)', 'FontSize', 12);
 % ylabel('RMS Amplitude', 'FontSize', 12);
-% title('Phase Optimization - RMS Amplitude', 'FontSize', 14);
+% title('Phase optimisation - RMS Amplitude', 'FontSize', 14);
 % grid on;
 
 %% Generate Final Demodulated Signal with Optimal Phase
@@ -1015,6 +1031,8 @@ fprintf('Signal length: %.2f seconds\n', length(signal_demod_final)/fs);
 %% Plot Final Demodulated Signal
 t_final = (0:length(signal_demod_final)-1) / fs;
 
+% This code has been commented out to reduce plotting during automated runs.
+
 % figure('Position', [100 100 1000 500]);
 % plot(t_final, signal_demod_final, 'b', 'LineWidth', 0.8);
 % xlabel('Time (s)', 'FontSize', 12);
@@ -1034,16 +1052,16 @@ t_final = (0:length(signal_demod_final)-1) / fs;
 
 fprintf('Final signal plotted\n');
 
-%% Normalize and Play Audio
+%% Normalise and Play Audio
 amplification_factor = 3;  % Increase volume
 signal_amplified = signal_demod_final * amplification_factor; % remove this line and above
 
-% Normalize to [-1, 1] range for audio playback
+% Normalise to [-1, 1] range for audio playback
 signal_audio = signal_amplified / max(abs(signal_demod_final)); % change signal_amplified to signal_demod_final if it doesn't work.
 
 fprintf('Playing demodulated audio message...\n');
 
-playback_rate = fs * 0.8;  % Slow down by 30%
+playback_rate = fs * 0.8;  % Slow down by 20%
 sound(signal_audio, playback_rate);
 
 % Wait for playback to finish

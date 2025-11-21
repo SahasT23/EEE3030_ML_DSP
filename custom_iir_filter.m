@@ -30,10 +30,10 @@ nb = length(b);  % Number of feedforward coefficients
 na = length(a);  % Number of feedback coefficients
 nx = length(x);  % Signal length
 
-% Initialize output
+% Initialise output
 y = zeros(nx, 1);
 
-% Initialize state buffers (past inputs and outputs)
+% Initialise state buffers (past inputs and outputs)
 x_buffer = zeros(nb, 1);  % Past inputs
 y_buffer = zeros(na, 1);  % Past outputs
 
