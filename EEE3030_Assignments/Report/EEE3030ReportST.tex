@@ -1,0 +1,109 @@
+\documentclass[a4paper,12pt]{article}
+\input{EEE3030Header}
+\graphicspath{{../Images/}}
+
+\begin{document}
+%----------------------------------------------------------------------------------------
+%	TITLE+
+%----------------------------------------------------------------------------------------
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    \Huge{\textbf{EEE3030 Signal Processing and Machine Learning}}\\[0.5cm]
+    \Large{\textbf{Semester 1 Report}}\\ 
+    \Large{Sahas Talasila \textit{230057896}}
+    \vfill
+\end{titlepage}
+
+% Table of Contents
+\tableofcontents
+\newpage
+
+%----------------------------------------------------------------------------------------
+%	SECTION 1
+%----------------------------------------------------------------------------------------
+
+\begin{abstract}
+This report presents the findings and methodologies employed in the EEE3030 Signal Processing and Machine Learning course. It encompasses a comprehensive analysis of signal processing techniques, machine learning algorithms, and their applications in various domains. The report details the experimental setups, data analysis, and results obtained from implementing different models. Key insights and conclusions drawn from the study are also discussed, highlighting the effectiveness of the approaches used.  
+\end{abstract}
+
+%----------------------------------------------------------------------------------------
+%	SECTION 2
+%----------------------------------------------------------------------------------------
+
+\section{Introduction}
+
+\section{Results and Discussion}
+
+\subsection{Task 1}
+
+Need to make sure I have done the following:
+
+\begin{itemize}
+  \item Read the .wav file in with audioread() function. (done)
+  \item amplitude normalisation and frequency scaled (done)
+  \item Need to talk about frequency resolution.
+  \item Need to talk about spectral leakage in the report (can use my windowing code to demonstrate this and how I have compared different methods).
+  \item Need to include code snippets in the report to show how I have implemented the different methods.
+  \item Add plots of the methods to show that I have done the above. Need to show that I have used my own fft code. 
+\end{itemize}
+
+\subsection{Task 2}
+
+\begin{itemize}
+  \item Explain the cut off frequencies used for the filters.
+  \item Include calculations for filter design.
+  \item Show the FIR filter design code.
+  \item Show convolution code.
+  \item Show the frequency response of the filter and show the expected value.
+  \item Show that I have applied the filter to the signal.
+\end{itemize}
+
+\subsection{Task 3}
+
+\begin{itemize}
+  \item Square the filtered signal for a better response. 
+  \item Show code and plots for the envelope detection.
+  \item Show the carrier frequency and the message frequency.
+  \item Show fc times AM signal plot.
+  \item Show the mixed plot in time domain AND frequency domain.
+\end{itemize}
+
+\subsection{Task 4}
+
+\begin{itemize}
+  \item Show the code for the correctly designed IIR filter.
+  \item Apply to output of task 3.
+  \item Show the frequency response of the filter.
+  \item Show the final output signal in time domain and frequency domain.
+  \item Compare the output signal with the original message signal.
+  \item Show convolution code if used.
+  \item Explain the outputs
+\end{itemize}
+
+\subsection{Task 5}
+
+\begin{itemize}
+  \item Show plot of output signal against original message signal.
+  \item Calculate and show the SNR of the output signal.
+  \item Explain the results obtained.
+  \item Show that I have attempted to change the phase to increase SNR (using the incremental phase increase).
+\end{itemize}
+
+\section{Conclusion}
+
+explain what was done in the report and summarise the results obtained. Talk about any challenges faced and how they were overcome. Discuss any potential improvements or future work that could be done based on the findings of the report.
+Need to add some stuff on how I initially tried to find the upper and lower limits for the bandpass filter by looking at the fft of the AM signal but this did not work well as there was too much noise. So I had to use trial and error to find suitable cut off frequencies for the bandpass filter.
+
+\section{References}
+
+References that I have used in the report. (articles, MATLAB documentation, textbooks etc.)
+
+\section{Appendix}
+
+Include some flowcharts for code design if possible.
+Include entire code listings if possible or split for the tasks. (code snippet for task 1, task 2 etc.)
+Include conv.m and iir filter design code.
+
+\end{document}
