@@ -15,24 +15,24 @@ fprintf('Duration: %.2f seconds\n', length(signal)/fs);
 
 % This code has been commented out to reduce plotting during automated runs.
 
-% t = (0:length(signal)-1) / fs;  % Time vector in seconds
+t = (0:length(signal)-1) / fs;  % Time vector in seconds
 
-% figure('Position', [100 100 1200 400]);
-% plot(t, signal, 'b', 'LineWidth', 0.5);
-% xlabel('Time (s)', 'FontSize', 12);
-% ylabel('Amplitude', 'FontSize', 12);
-% title('Received AM Signal - Time Domain', 'FontSize', 14);
-% grid on;
-% xlim([0 max(t)]);
+figure('Position', [100 100 1200 400]);
+plot(t, signal, 'b', 'LineWidth', 0.5);
+xlabel('Time (s)', 'FontSize', 12);
+ylabel('Amplitude', 'FontSize', 12);
+title('Received AM Signal - Time Domain', 'FontSize', 14);
+grid on;
+xlim([0 max(t)]);
 
-% % Zoom in on first 0.01 seconds to see modulation envelope
-% figure('Position', [100 100 1200 400]);
-% plot(t, signal, 'b', 'LineWidth', 1);
-% xlabel('Time (s)', 'FontSize', 12);
-% ylabel('Amplitude', 'FontSize', 12);
-% title('Received AM Signal - Time Domain (Zoomed)', 'FontSize', 14);
-% grid on;
-% xlim([0 0.01]);  % First 10ms
+% Zoom in on first 0.01 seconds to see modulation envelope
+figure('Position', [100 100 1200 400]);
+plot(t, signal, 'b', 'LineWidth', 1);
+xlabel('Time (s)', 'FontSize', 12);
+ylabel('Amplitude', 'FontSize', 12);
+title('Received AM Signal - Time Domain (Zoomed)', 'FontSize', 14);
+grid on;
+xlim([0 0.01]);  % First 10ms
 
 %% Frequency Domain Analysis - Manual FFT Implementation
 N = length(signal);  % Number of samples
@@ -60,23 +60,23 @@ fprintf('\nFrequency resolution: %.2f Hz\n', df);
 
 % This code has been commented out to reduce plotting during automated runs.
 
-% figure('Position', [100 100 1200 500]);
-% plot(f/1000, signal_dB, 'b', 'LineWidth', 1);
-% xlabel('Frequency (kHz)', 'FontSize', 12);
-% ylabel('Magnitude (dB)', 'FontSize', 12);
-% title('Received AM Signal - Frequency Domain (Full Spectrum)', 'FontSize', 14);
-% grid on;
-% xlim([0 fs/2000]);  % Full range to fs/2
+figure('Position', [100 100 1200 500]);
+plot(f/1000, signal_dB, 'b', 'LineWidth', 1);
+xlabel('Frequency (kHz)', 'FontSize', 12);
+ylabel('Magnitude (dB)', 'FontSize', 12);
+title('Received AM Signal - Frequency Domain (Full Spectrum)', 'FontSize', 14);
+grid on;
+xlim([0 fs/2000]);  % Full range to fs/2
 
-% % Zoom in on the region of interest (typically 10-30 kHz for AM signals)
-% figure('Position', [100 100 1200 500]);
-% plot(f/1000, signal_dB, 'b', 'LineWidth', 1);
-% xlabel('Frequency (kHz)', 'FontSize', 12);
-% ylabel('Magnitude (dB)', 'FontSize', 12);
-% title('Received AM Signal - Frequency Domain (Zoomed to AM Band)', 'FontSize', 14);
-% grid on;
-% xlim([5 35]);  % Adjust this range based on where you see the signal
-% ylim([max(signal_dB)-80 max(signal_dB)+5]);  % Show 80 dB dynamic range
+% Zoom in on the region of interest (typically 10-30 kHz for AM signals)
+figure('Position', [100 100 1200 500]);
+plot(f/1000, signal_dB, 'b', 'LineWidth', 1);
+xlabel('Frequency (kHz)', 'FontSize', 12);
+ylabel('Magnitude (dB)', 'FontSize', 12);
+title('Received AM Signal - Frequency Domain (Zoomed to AM Band)', 'FontSize', 14);
+grid on;
+xlim([5 35]);  % Adjust this range based on where you see the signal
+ylim([max(signal_dB)-80 max(signal_dB)+5]);  % Show 80 dB dynamic range
 
 % Windowing Techniques
 % Apply different window functions and analyze their effects on the FFT

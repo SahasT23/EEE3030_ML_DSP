@@ -109,14 +109,41 @@ This report presents the findings and methodologies employed in the EEE3030 Sign
 
 \subsection{Task 1 Procedure, Results and Discussion}
 
+This section will cover the steps taken to read and analyse the provided AM signal with noise. The analysis includes time-domain and frequency-domain representations, as well as the application of various windowing techniques to mitigate spectral leakage.
+
 \subsubsection{Reading the Audio File and Statistics}
 
-For the first part of this task, we need to load in the audio signal and determine its parameters such as sampling frequency, number of samples, duration, and frequency resolution.
-From \textbf{LISTING 1}, we can see the MATLAB code used to load the audio signal and display its parameters.
+\textbf{Procedure}\\
+The provided AM signal was read using MATLAB's \texttt{audioread} function. The sampling frequency and duration of the signal were determined to facilitate further analysis.
+It is important to find the basic information about the audio file such as sampling frequency, frequency resolution, duration, number of samples etc. This can be clearly shown by using a few simple formulae, such as:
 
-\begin{lstlisting}{style=mstyle}
-%% Load the AM signal
-[signal, fs] = audioread('Sahas_Talasila.wav');
+Time duration of signal:
+\begin{equation}
+    T = \frac{1}{f_s}
+\end{equation}
+
+Number of samples:
+\begin{equation}
+    N = T \times f_s
+\end{equation}  
+Where \( f_s \) is the sampling frequency.
+
+\begin{equation}
+    \Delta f = \frac{f_s}{N}
+\end{equation}
+Where \( \Delta f \) is the frequency resolution.
+
+This information is needed because it helps in understanding the characteristics of the signal and is essential for accurate FFT analysis.
+A time domain plot of the original AM signal can be shown as well, so that we can visually inspect the signal for any obvious features or anomalies.
+
+This covers the first part of \textbf{Task 1}, as we have inspected the original signal in time domain and calculated important parameters.
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 1: Time and Frequency Domain Analysis},label={lst:task1_code}]
+% Task 1: Time and Frequency Domain Analysis
+clear; close all; clc;
+
+% Load the AM signal
+[signal, fs] = audioread('Sahas_Talasila.wav'); % Loading audio file
 signal = signal(:);  % Ensure column vector
 
 % Display basic information
@@ -124,66 +151,9 @@ fprintf('Sampling frequency: %d Hz\n', fs);
 fprintf('Signal length: %d samples\n', length(signal));
 fprintf('Duration: %.2f seconds\n', length(signal)/fs);
 
-% Time Domain Analysis
-t = (0:length(signal)-1) / fs;  % Time vector in seconds
-\end{lstlisting}
+% %% Time Domain Plot
 
-This piece of code uses MATLAB's \texttt{audioread()} function to load the audio file named \texttt{Sahas\_Talasila.wav}. 
-The signal is then reshaped into a column vector to ensure consistency in further processing. 
-The sampling frequency (\texttt{fs}) and the length of the signal (number of samples) are printed to the console, along with the duration of the signal calculated by dividing the number of samples by the sampling frequency.
-From \textbf{FIGURE X} and the list below, we can see the terminal output from the code above which reveals the following information:
-
-\textbf{FIGURE X: Terminal output showing signal parameters.}
-
-\begin{enumerate}
-  \item Sampling Frequency ($f_s$): 96000 Hz
-  \item Number of Samples ($N$): 244104 samples
-  \item Duration ($T$): 2.54 seconds
-  \item Frequency Resolution ($\Delta f$): 0.39 Hz
-\end{enumerate}
-
-The sampling frequency tells us how many samples of the signal are taken per second, which is crucial for accurately representing the signal in the digital domain. 
-The number of samples indicates the total data points in the signal, and the duration gives us the total time span of the audio signal. 
-The frequency resolution is particularly important for FFT analysis as it determines how finely we can distinguish between different frequency components in the signal.
-A smaller delta value means a much higher resolution, so we can clearly distinguish between closely spaced frequency components in the FFT output.
-
-Sampling frequency is calculated using the equation below:
-\begin{equation}
-f_s = \frac{1}{T_s}
-\end{equation}
-
-where:
-\begin{equation}
-f_s = \text{sampling frequency (Hz)}
-\end{equation}
-
-The sampling period ($T_s$) is the time interval between consecutive samples in the discrete signal.
-
-The number of samples ($N$) is simply the total count of discrete data points in the signal, which can be obtained using the \texttt{length()} function in MATLAB.
-
-Frequency resolution ($\Delta f$) is calculated using the formula:
-
-\begin{equation}
-  \Delta f = \frac{f_s}{N}
-\end{equation}
-
-Where:
-
-\begin{equation}
-\Delta f = \text{frequency resolution (Hz)}
-\end{equation}
-
-We can see all of these values printed in the terminal output from the MATLAB code above (\textbf{FIGURE X}).
-
-\subsubsection{Time Domain Analysis}
-
-Previously, the reader has seen some of the statistics and the audio loading code for the AM signal. It is paramount that we see the spectrum of the signal in both time and frequency domains to understand its characteristics.
-Firstly, we will plot the time-domain representation of the signal using the following MATLAB code snippet:
-
-\begin{lstlisting}{style=mstyle}
-%% Time Domain Plot
-
-% This code has been commented out to reduce plotting during automated runs. (remove this comment later)
+% This code has been commented out to reduce plotting during automated runs.
 
 t = (0:length(signal)-1) / fs;  % Time vector in seconds
 
@@ -194,23 +164,48 @@ ylabel('Amplitude', 'FontSize', 12);
 title('Received AM Signal - Time Domain', 'FontSize', 14);
 grid on;
 xlim([0 max(t)]);
+
 \end{lstlisting}
 
-The code above (\textbf{LISTING X}), very simply generates the plot for the time-domain representation of the AM signal.
-It is very clear to see that there are three distinct peaks in the signal at different time intervals, indicating the presence of significant events or features in the signal at those times.
-These peaks appear at (very roughly) 0.5s, 1.5s, and 2.2s, which likely correspond to the modulated message signals (our three characters) within the AM waveform. This can be seen below in \textbf{FIGURE X}.
+This code snippet (Listing \ref{lst:task1_code}) demonstrates how to read the AM signal, extract its sampling frequency, and plot the time-domain representation of the signal. The time vector is calculated based on the length of the signal and the sampling frequency.
+There is a method to easily generate the AM signal in the time domain. From \textbf(FIGURE X), we can see that the sampling frequency is $96000Hz$, total sample count is $244104$, frequency resolution of $0.39Hz$ and a duration of $2.54$ seconds. The terminal output is show below and has been calculated using the above code snippet and \textit{Equations 1, 2 and 3}.
 
-\textbf{FIGURE SHOWING THE TIME DOMAIN SIGNAL}
+These statistics can show us important information about the signal. Sampling frequency ($f_s$) indicates how many samples are taken per second, which is crucial for accurately capturing the signal's characteristics. The duration tells us how long the signal lasts, and the number of samples gives insight into the signal's resolution in both time and frequency domains.
 
-\subsubsection{Frequency Domain Analysis and FFT}
+Sample count can also help in determining the frequency resolution ($\Delta f$) when performing FFT analysis, which is essential for identifying frequency components within the signal.
 
-It is important to analyse the signal in the time domain, as we can clearly see the amplitude variations over time, which is characteristic of AM signals, which provides us some simple information. 
-But, for the purpose of filtering and extracting the message signal, we need to look at the frequency domain representation of the signal.
-The frequency domain representation can be obtained using the Fast Fourier Transform (FFT). The following MATLAB code snippet is used to compute and plot the FFT of the signal:
+Frequency resolution is particularly important when analyzing signals with closely spaced frequency components, as it determines the ability to distinguish between these components in the frequency domain. A smaller frequency resolution value means that the FFT can resolve finer details in the frequency spectrum (more bins, easier to differentiate difficult signals).
 
-\begin{lstlisting}{style=mstyle}
-%% Frequency Domain Plot using FFT
-% Frequency Domain Analysis - Manual FFT
+\large{FIGURE SHOWING THE TERMINAL OUTPUT FOR SAMPLING FREQUENCY, DURATION ETC.}
+
+We can then see the time domain plot of the original AM signal, which shows the amplitude variations over time. This plot is crucial for visualizing the characteristics of the AM signal and identifying any potential issues such as noise or distortion.
+Some initial observations reveal a few key pieces of information about the signal. We can see that there are three distinct peaks in the signal at approximately 0.5s, 1.5s, and 2.3s. These peaks likely correspond to the presence of the message signal within the AM waveform. The rest of the signal appears to be relatively low in amplitude, indicating that it is primarily noise.
+
+\large{FIGURE SHOWING THE TIME DOMAIN PLOT OF THE ORIGINAL AM SIGNAL.}
+
+\subsubsection{Frequency Domain Analysis}
+
+\textbf{Procedure}\\
+To analyze the frequency content of the AM signal, the Fast Fourier Transform (FFT) was applied. The FFT provides a frequency-domain representation of the signal, allowing for the identification of key frequency components. The amplitude spectrum was normalized to facilitate comparison and interpretation.
+For some background theory:
+
+The Fast Fourier Transform (FFT) is an efficient algorithm for computing the 
+Discrete Fourier Transform (DFT). The DFT converts a signal from the 
+\textbf{time domain}, where we see how the signal changes over time, to the 
+\textbf{frequency domain}, where we see which frequencies are present in the 
+signal. \textit{Equation 4} below shows the mathematical representation of the DFT:
+
+\begin{equation}
+X[k] = \sum_{n=0}^{N-1} x[n]\, e^{-j 2\pi kn / N}  
+\end{equation}
+
+Here, $x[n]$ is the time-domain signal and $X[k]$ is the frequency-domain 
+representation.
+
+Frequency domain analysis is needed because it allows the user to see the different frequency components that make up the signal. This is particularly useful for identifying periodic signals, noise, and other characteristics that may not be easily observable in the time domain, wherein we only saw the 3 peaks and noise that permeated through.
+
+\begin{lstlisting}(style=mstyle)[caption={MATLAB Code for FFT Analysis}, label={lst:fft_code}]
+%% Frequency Domain Analysis - Manual FFT Implementation
 N = length(signal);  % Number of samples
 df = fs / N;         % Frequency resolution
 
@@ -232,100 +227,99 @@ signal_dB = 20 * log10(signal_amplitude + eps);  % eps prevents log(0)
 
 fprintf('\nFrequency resolution: %.2f Hz\n', df);
 
-%% Plot Frequency Spectrum
+% %% Plot Frequency Spectrum
+
+% This code has been commented out to reduce plotting during automated runs.
+
 figure('Position', [100 100 1200 500]);
 plot(f/1000, signal_dB, 'b', 'LineWidth', 1);
 xlabel('Frequency (kHz)', 'FontSize', 12);
 ylabel('Magnitude (dB)', 'FontSize', 12);
-title('Received AM Signal - Frequency Domain', 'FontSize', 14);
+title('Received AM Signal - Frequency Domain (Full Spectrum)', 'FontSize', 14);
 grid on;
-xlim([0 fs/2000]);  % Full range to Nyquist
+xlim([0 fs/2000]);  % Full range to fs/2
 \end{lstlisting}
 
-The code above (\textbf{LISTING X}) computes the FFT of the AM signal and plots its magnitude spectrum in decibels (dB) against frequency in kilohertz (kHz).
-The FFT is computed using MATLAB's built-in \texttt{fft()} function, and the resulting frequency components are normalized to obtain the actual amplitude values.
+This code snippet (Listing \ref{lst:fft_code}) demonstrates the manual implementation of the FFT in MATLAB. It calculates the frequency vector, normalises the amplitude spectrum, and converts it to a decibel scale for better visualisation.
+This step is needed, because normalisation ensures that the amplitude values accurately reflect the signal's strength across different frequency components. Without normalisation, the amplitude values could be misleading, making it difficult to interpret the frequency content of the signal correctly.
+Likewise, the log scale helps in visualising a wide range of amplitude values, making it easier to identify significant frequency components.
+The frequency resolution calculated here is approximately $0.39Hz$, which aligns with the earlier calculation based on the sampling frequency and number of samples.
 
-The frequency vector is created to correspond to the positive frequencies only, and the amplitude is converted to a dB scale for better visualisation. We have also printed the frequency resolution to the console for reference.
-In addition, we only look at the positive frequencies since the FFT output is symmetric for real-valued signals.
+\large{FIGURE SHOWING THE FREQUENCY DOMAIN PLOT OF THE ORIGINAL AM SIGNAL.}
 
-Before discussing the results, it is important to understand the concept of frequency resolution in the context of FFT analysis.
+From \textbf{FIGURE X}, it is evident that the AM signal contains significant frequency components around the carrier frequency and its sidebands. The presence of these components confirms the AM nature of the signal, where the message signal modulates the amplitude of the carrier wave.
+However, there is also a considerable amount of noise present across the frequency spectrum, which could potentially interfere with the accurate demodulation of the message signal. This noise is likely due to various factors, including environmental interference and imperfections in the transmission process, but in this case, it has been artificially added in.
 
-The Fast Fourier Transform (FFT) is a method that quickly converts a signal from the time domain (how the signal changes over time)
-into the frequency domain (what frequencies are inside the signal).
+It is safe to assume that the carrier frequency is roughly around $16kHz$, with $f_{min} = 15.6kHz$ and $f_{max} = 16.4kHz$, because we can see the two sidebands around this frequency, which is typical for AM signals. 
+But the bandwidth of the message signal is $4kHz$, which means that the sidebands can actually extend up to $\pm 4kHz$. This is the reason why I had to use trial and error to find the cut off frequencies for the bandpass filter in task 2, as the initial calculations did not yield good results due to the noise present in the signal.
 
-\textbf{Why is the FFT important?}
+\subsubsection{Windowing and Spectral Leakage}
 
-\begin{itemize}
-    \item It shows which frequencies are present in a signal.
-    \item It is much more useful for analyzing signals than just looking at them over time.
-    \item It helps us design filters to isolate or remove certain frequencies.
-\end{itemize}
+\textbf{Procedure}\\
+To mitigate spectral leakage in the FFT analysis, various windowing techniques were applied to the AM signal. 
+Spectral leakage is a phenomenon that occurs when the signal being analysed is not perfectly periodic within the observation window, leading to discontinuities at the edges of the sampled signal. These discontinuities introduce artifacts in the frequency domain, causing energy from one frequency component to ``leak" into adjacent frequencies. This can obscure the true frequency content of the signal and make it difficult to accurately identify and analyze specific frequency components. 
+Window functions work by tapering the edges of the signal to zero, which minimizes discontinuities when the signal is treated as periodic during the FFT computation, making it a bit easier and improving accuracy. This tapering reduces the abrupt transitions at the boundaries, thereby decreasing spectral leakage.
 
-Normalisation and scaling are needed for the FFT output to ensure that the amplitude values accurately represent the signal's strength at each frequency.
-Without normalisation, the FFT output can be misleading, as the raw FFT values depend on the number of samples and the specific implementation of the FFT algorithm.
-By normalising the FFT output, we ensure that the amplitude values are consistent and comparable across different signals and sampling conditions. It also makes it easier to interpret the results, especially when converting to a logarithmic scale (dB).
+Whilst I did compare different windowing methods such as Hamming, Hanning and Blackman windows, I found that the Hamming window provided the best balance between main lobe width and side lobe levels for this specific application. The Hamming window effectively reduced spectral leakage while maintaining a reasonable frequency resolution, making it suitable for analyzing the AM signal in this context. I have excluded the other windowing methods from the report for brevity.
 
-\textbf{FIGURE SHOWING THE FREQUENCY DOMAIN SIGNAL}
+The Hamming window is defined mathematically as follows:
+\begin{equation}
+w[n] = 0.54 - 0.46 \cos\left(\frac{2\pi n}{N-1}\right), \quad 0 \leq n \leq N-1
+\end{equation}
+Where \( N \) is the total number of samples in the window.
 
-We can see from the frequency domain plot above (\textbf{FIGURE X}) that there are significant peaks in the spectrum, which correspond to the carrier frequency and its sidebands.
-These peaks indicate the presence of the modulated message signals within the AM waveform. The peaks are located at \textbf{X FREQUENCIES}
-The carrier frequency can be identified as the highest peak in the spectrum, while the sidebands are located symmetrically around the carrier frequency.
+\begin{lstlisting}(style=mstyle)[caption={MATLAB Code for Hamming Window Application}, label={lst:hamming_code}]
+%% Estimate Carrier Frequency from Spectrum
 
-This frequency domain representation is crucial for designing filters to isolate and extract the message signals from the noisy AM signal.
-Initially, I attempted to determine the cut-off frequencies for the bandpass filter by analyzing the FFT of the AM signal. 
+% Calculate noise floor and threshold
+noise_hamming = median(dB_hamming);
+threshold_hamming = noise_hamming + 20;  % 20 dB above noise
 
-However, this approach proved to be ineffective due to the high level of noise present in the signal, which obscured the relevant frequency components. 
-Consequently, I resorted to a trial-and-error method to identify suitable cut-off frequencies for the bandpass filter. 
-This was only possible after some guidance, wherein I decided to set the ranges to $\pm B$, where $B$ is the message bandwidth of 4 kHz. 
-This approach allowed me to effectively isolate the desired frequency components for further processing.
+% Detect signal bandwidth
+detect_hamming = find(dB_hamming > threshold_hamming);
 
-\subsubsection{Windowing Methods and Their Effects}
+if ~isempty(detect_hamming)
+    fmin_detected = f(detect_hamming(1));
+    fmax_detected = f(detect_hamming(end));
+    
+    % Round to nearest 100 Hz
+    fmin_detected = round(fmin_detected/100) * 100;
+    fmax_detected = round(fmax_detected/100) * 100;
+    
+    % Estimate carrier frequency (center of detected band)
+    fc_estimated = (fmin_detected + fmax_detected) / 2;
+    
+    fprintf('\n--- Detected Signal Band ---\n');
+    fprintf('fmin (detected): %.2f kHz (%.0f Hz)\n', fmin_detected/1000, fmin_detected);
+    fprintf('fmax (detected): %.2f kHz (%.0f Hz)\n', fmax_detected/1000, fmax_detected);
+    fprintf('fc (estimated): %.2f kHz (%.0f Hz)\n', fc_estimated/1000, fc_estimated);
+end
 
-When performing FFT analysis, windowing is a technique used to reduce spectral leakage, which occurs when the signal being analyzed is not perfectly periodic within the observation window.
-Spectral leakage can distort the frequency representation of the signal, making it difficult to accurately identify and analyze its frequency components.
-By applying a window function to the signal before performing the FFT, we can mitigate the effects of spectral leakage.
+%% Set Bandpass Filter Edges
+% The message bandwidth B = 4kHz
+% Therefore, bandpass filter should be fc +- 4kHz
+
+fmin = fc_estimated - 3800;  % fc - 4kHz
+fmax = fc_estimated + 3700;  % fc + 4kHz
+
+fprintf('\n=== Bandpass Filter Design Parameters ===\n');
+fprintf('Carrier frequency (fc): %.0f Hz (%.2f kHz)\n', fc_estimated, fc_estimated/1000);
+fprintf('Bandpass filter edges:\n');
+fprintf('  fmin = fc - 4kHz = %.0f Hz (%.2f kHz)\n', fmin, fmin/1000);
+fprintf('  fmax = fc + 4kHz = %.0f Hz (%.2f kHz)\n', fmax, fmax/1000);
+fprintf('  Bandwidth = %.0f Hz (%.2f kHz)\n', fmax-fmin, (fmax-fmin)/1000);
+\end{lstlisting}
+
+The code snippet (Listing \ref{lst:hamming_code}) demonstrates the application of the Hamming window to the AM signal before performing the FFT. The windowed signal is then analysed in the frequency domain to assess the effectiveness of the windowing technique in reducing spectral leakage.
+The code works by first creating the Hamming window based on the length of the signal. The window is then applied to the original signal through element-wise multiplication. After windowing, the FFT is computed, and the amplitude spectrum is normalised and converted to a decibel scale for visualisation.
+Afterwards, the code estimates the carrier frequency and sets the bandpass filter edges based on the detected signal bandwidth (but this has been changed to $\approx$ $\pm B$, where $B = 4kHz$).
+
+\large{FIGURE SHOWING THE FREQUENCY DOMAIN PLOT OF THE AM SIGNAL WITH HAMMING WINDOW APPLIED.}
+
+From \textbf{FIGURE X}, it is evident that the application of the Hamming window has significantly reduced spectral leakage in the frequency domain representation of the AM signal. The frequency components are more distinct, and the overall noise floor appears lower compared to the unwindowed FFT analysis.
+This improvement is crucial for accurately identifying the carrier frequency and sidebands of the AM signal, as it allows for a clearer distinction between the signal components and the surrounding noise. The reduced spectral leakage enhances the reliability of subsequent analyses, such as filter design and demodulation, which are essential for recovering the original message signal from the noisy AM waveform.
 
 \subsection{Task 2}
-
-\begin{itemize}
-  \item Explain the cut off frequencies used for the filters.
-  \item Include calculations for filter design.
-  \item Show the FIR filter design code.
-  \item Show convolution code.
-  \item Show the frequency response of the filter and show the expected value.
-  \item Show that I have applied the filter to the signal.
-\end{itemize}
-
-\subsection{Task 3}
-
-\begin{itemize}
-  \item Square the filtered signal for a better response. 
-  \item Show code and plots for the envelope detection.
-  \item Show the carrier frequency and the message frequency.
-  \item Show fc times AM signal plot.
-  \item Show the mixed plot in time domain AND frequency domain.
-\end{itemize}
-
-\subsection{Task 4}
-
-\begin{itemize}
-  \item Show the code for the correctly designed IIR filter.
-  \item Apply to output of task 3.
-  \item Show the frequency response of the filter.
-  \item Show the final output signal in time domain and frequency domain.
-  \item Compare the output signal with the original message signal.
-  \item Show convolution code if used.
-  \item Explain the outputs
-\end{itemize}
-
-\subsection{Task 5}
-
-\begin{itemize}
-  \item Show plot of output signal against original message signal.
-  \item Calculate and show the SNR of the output signal.
-  \item Explain the results obtained.
-  \item Show that I have attempted to change the phase to increase SNR (using the incremental phase increase).
-\end{itemize}
 
 \section{Conclusion}
 
