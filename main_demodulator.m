@@ -16,6 +16,11 @@ if size(x, 2) > 1
     fprintf('Note: Stereo file detected, using first channel only.\n\n');
 end
 
+% audioread() returns a column vector, but we need row vectors throughout
+if iscolumn(x)
+    x = x';  % Transpose to row vector
+end
+
 %% Calculate basic signal properties
 N = length(x);                      % Total number of samples
 duration = N / fs;                  % Signal duration in seconds
@@ -154,25 +159,21 @@ fprintf('Signal threshold (+10dB):  %.2f dB\n', signal_threshold_dB);
 
 %% Sub-task 1.4: Spectral Leakage and Windowing
 
-% First, let's visualise the window functions to understand their properties
-
 % Create a sample index vector for window visualisation
 n_window = (0:N-1)';
 
-% Generate Rectangular window (for comparison - this is what we implicitly used before)
-rectangular_window = ones(N, 1);
+% Generate windows - BUT TRANSPOSE THEM TO ROW VECTORS
+rectangular_window = ones(1, N);  % Changed to row vector
 
-% Generate Hamming window using the formula from course notes
-% w[n] = 0.54 - 0.46 * cos(2*pi*n / (N-1))
-hamming_window = 0.54 - 0.46 * cos(2 * pi * n_window / (N - 1));
+% Generate Hamming window - as row vector
+hamming_window = (0.54 - 0.46 * cos(2 * pi * (0:N-1) / (N - 1)));
 
-% Generate Hanning window for comparison
-% w[n] = 0.5 - 0.5 * cos(2*pi*n / (N-1))
-hanning_window = 0.5 - 0.5 * cos(2 * pi * n_window / (N - 1));
+% Generate Hanning window - as row vector  
+hanning_window = (0.5 - 0.5 * cos(2 * pi * (0:N-1) / (N - 1)));
 
-% Generate Blackman window for comparison
-% w[n] = 0.42 - 0.5*cos(2*pi*n/(N-1)) + 0.08*cos(4*pi*n/(N-1))
-blackman_window = 0.42 - 0.5 * cos(2 * pi * n_window / (N - 1)) + 0.08 * cos(4 * pi * n_window / (N - 1));
+% Generate Blackman window - as row vector
+blackman_window = (0.42 - 0.5 * cos(2 * pi * (0:N-1) / (N - 1)) + 0.08 * cos(4 * pi * (0:N-1) / (N - 1)));
+
 
 % Calculate coherent gain for each window (needed for amplitude correction)
 CG_rectangular = sum(rectangular_window) / N;
@@ -1043,7 +1044,6 @@ end
 
 fprintf('\n============================================\n');
 fprintf('       CARRIER GENERATION AND MIXING       \n');
-fprintf('============================================\n');
 
 % Set initial phase to zero (will be optimised in Task 5)
 phi = 0;
@@ -1183,3 +1183,772 @@ fprintf('                           Filtered    Mixed\n');
 fprintf('  Maximum amplitude:       %.4f      %.4f\n', max(abs(x_filtered)), max(abs(x_mixed)));
 fprintf('  RMS amplitude:           %.4f      %.4f\n', sqrt(mean(x_filtered.^2)), sqrt(mean(x_mixed.^2)));
 fprintf('  Standard deviation:      %.4f      %.4f\n', std(x_filtered), std(x_mixed));
+
+%% Task 4: IIR Lowpass Filter Design
+%% Sub-task 4.1: IIR Lowpass Filter Design
+
+fprintf('TASK 4: IIR LOWPASS FILTER\n');
+
+% Filter specifications
+filter_order = 4;
+fc_lowpass = 4000;  % Cutoff frequency in Hz
+
+% Normalised cutoff frequency for MATLAB's butter()
+% MATLAB uses normalised frequency where 1 = Nyquist frequency (fs/2)
+Wn = fc_lowpass / (fs/2);
+
+fprintf('FILTER SPECIFICATIONS:\n');
+fprintf('  Filter type:             Butterworth (maximally flat)\n');
+fprintf('  Filter order:            %d\n', filter_order);
+fprintf('  Cutoff frequency:        %d Hz\n', fc_lowpass);
+fprintf('  Sampling frequency:      %d Hz\n', fs);
+fprintf('  Normalised cutoff (Wn):  %.6f\n', Wn);
+
+%% Design the Butterworth filter using bilinear transform
+
+% MATLAB's butter() function implements the bilinear transform method
+% It returns coefficients for the transfer function H(z) = B(z)/A(z)
+[b_iir, a_iir] = butter(filter_order, Wn, 'low');
+
+fprintf('       IIR FILTER COEFFICIENTS             \n');
+fprintf('Numerator coefficients (b):\n');
+for i = 1:length(b_iir)
+    fprintf('  b[%d] = %.10f\n', i-1, b_iir(i));
+end
+fprintf('--------------------------------------------\n');
+fprintf('Denominator coefficients (a):\n');
+for i = 1:length(a_iir)
+    fprintf('  a[%d] = %.10f\n', i-1, a_iir(i));
+end
+
+%% Verify coefficient properties
+
+fprintf('       COEFFICIENT ANALYSIS                \n');
+fprintf('Number of numerator coefficients:   %d\n', length(b_iir));
+fprintf('Number of denominator coefficients: %d\n', length(a_iir));
+fprintf('Sum of numerator coefficients:      %.10f\n', sum(b_iir));
+fprintf('Sum of denominator coefficients:    %.10f\n', sum(a_iir));
+fprintf('DC gain (H(z=1)):                   %.6f\n', sum(b_iir)/sum(a_iir));
+
+
+%% Plot filter coefficients
+
+figure('Name', 'IIR Filter Coefficients', 'Position', [100, 100, 1000, 500]);
+
+subplot(1,2,1);
+stem(0:length(b_iir)-1, b_iir, 'b', 'LineWidth', 1.5, 'MarkerSize', 8);
+xlabel('Coefficient Index', 'FontSize', 11);
+ylabel('Value', 'FontSize', 11);
+title('Numerator Coefficients (b)', 'FontSize', 12);
+grid on;
+
+subplot(1,2,2);
+stem(0:length(a_iir)-1, a_iir, 'r', 'LineWidth', 1.5, 'MarkerSize', 8);
+xlabel('Coefficient Index', 'FontSize', 11);
+ylabel('Value', 'FontSize', 11);
+title('Denominator Coefficients (a)', 'FontSize', 12);
+grid on;
+
+%% Sub-task 4.3: Custom IIR Filter Verification
+
+fprintf('       CUSTOM IIR FILTER VERIFICATION      \n');
+
+%% Test 1: Compare with MATLAB's filter() function
+
+fprintf('\nTest 1: Comparing custom_iir_filter() with MATLAB filter()\n');
+fprintf('------------------------------------------------------------\n');
+
+% Create test signal (use a portion of the mixed signal)
+test_length = 10000;
+test_signal = x_mixed(1:test_length);
+
+% Filter using MATLAB's built-in function
+tic;
+y_matlab = filter(b_iir, a_iir, test_signal);
+time_matlab = toc;
+
+% Filter using our custom function
+tic;
+y_custom = custom_iir_filter(b_iir, a_iir, test_signal);
+time_custom = toc;
+
+% Calculate error
+error_iir = y_matlab - y_custom;
+max_error_iir = max(abs(error_iir));
+mean_error_iir = mean(abs(error_iir));
+rms_error_iir = sqrt(mean(error_iir.^2));
+
+fprintf('  Test signal length:      %d samples\n', test_length);
+fprintf('  Maximum absolute error:  %.2e\n', max_error_iir);
+fprintf('  Mean absolute error:     %.2e\n', mean_error_iir);
+fprintf('  RMS error:               %.2e\n', rms_error_iir);
+fprintf('  MATLAB filter() time:    %.4f seconds\n', time_matlab);
+fprintf('  Custom function time:    %.4f seconds\n', time_custom);
+fprintf('  Speed ratio:             %.1fx slower\n', time_custom/time_matlab);
+
+if max_error_iir < 1e-10
+    fprintf('  Result:                  PASS (negligible numerical error)\n');
+else
+    fprintf('  Result:                  CHECK - Error may be significant\n');
+end
+
+%% Test 2: Verify with known input (impulse response)
+
+fprintf('\nTest 2: Impulse Response Verification\n');
+fprintf('--------------------------------------\n');
+
+% Create impulse signal
+impulse_length = 500;
+impulse = [1, zeros(1, impulse_length - 1)];
+
+% Get impulse response using both methods
+h_matlab = filter(b_iir, a_iir, impulse);
+h_custom = custom_iir_filter(b_iir, a_iir, impulse);
+
+% Compare
+impulse_error = max(abs(h_matlab - h_custom));
+fprintf('  Impulse signal length:   %d samples\n', impulse_length);
+fprintf('  Maximum impulse error:   %.2e\n', impulse_error);
+
+if impulse_error < 1e-10
+    fprintf('  Result:                  PASS\n');
+else
+    fprintf('  Result:                  CHECK\n');
+end
+
+%% Test 3: Verify with step response
+
+fprintf('\nTest 3: Step Response Verification\n');
+fprintf('-----------------------------------\n');
+
+% Create step signal
+step_length = 500;
+step_signal = ones(1, step_length);
+
+% Get step response using both methods
+step_matlab = filter(b_iir, a_iir, step_signal);
+step_custom = custom_iir_filter(b_iir, a_iir, step_signal);
+
+% Compare
+step_error = max(abs(step_matlab - step_custom));
+fprintf('  Step signal length:      %d samples\n', step_length);
+fprintf('  Maximum step error:      %.2e\n', step_error);
+fprintf('  Final value (MATLAB):    %.6f\n', step_matlab(end));
+fprintf('  Final value (custom):    %.6f\n', step_custom(end));
+fprintf('  Expected DC gain:        %.6f\n', sum(b_iir)/sum(a_iir));
+
+if step_error < 1e-10
+    fprintf('  Result:                  PASS\n');
+else
+    fprintf('  Result:                  CHECK\n');
+end
+
+%% Plot comparison
+
+figure('Name', 'Custom IIR Filter Verification', 'Position', [100, 100, 1200, 800]);
+
+% Plot 1: Output comparison (first 500 samples)
+subplot(2,2,1);
+plot_samples = min(500, test_length);
+plot(1:plot_samples, y_matlab(1:plot_samples), 'b-', 'LineWidth', 1.5);
+hold on;
+plot(1:plot_samples, y_custom(1:plot_samples), 'r--', 'LineWidth', 1);
+hold off;
+xlabel('Sample', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Output Comparison (First 500 Samples)', 'FontSize', 12);
+legend('MATLAB filter()', 'custom\_iir\_filter()', 'Location', 'best');
+grid on;
+
+% Plot 2: Error signal
+subplot(2,2,2);
+plot(1:test_length, error_iir, 'r-', 'LineWidth', 1);
+xlabel('Sample', 'FontSize', 11);
+ylabel('Error', 'FontSize', 11);
+title(sprintf('Error Signal (Max = %.2e)', max_error_iir), 'FontSize', 12);
+grid on;
+
+% Plot 3: Impulse response comparison
+subplot(2,2,3);
+plot(1:impulse_length, h_matlab, 'b-', 'LineWidth', 1.5);
+hold on;
+plot(1:impulse_length, h_custom, 'r--', 'LineWidth', 1);
+hold off;
+xlabel('Sample', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Impulse Response Comparison', 'FontSize', 12);
+legend('MATLAB', 'Custom', 'Location', 'best');
+grid on;
+
+% Plot 4: Step response comparison
+subplot(2,2,4);
+plot(1:step_length, step_matlab, 'b-', 'LineWidth', 1.5);
+hold on;
+plot(1:step_length, step_custom, 'r--', 'LineWidth', 1);
+yline(sum(b_iir)/sum(a_iir), 'g--', 'LineWidth', 1.5);
+hold off;
+xlabel('Sample', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Step Response Comparison', 'FontSize', 12);
+legend('MATLAB', 'Custom', 'DC Gain', 'Location', 'best');
+grid on;
+
+fprintf('\nCustom IIR filter implementation verified.\n');
+
+%% ========================================================================
+%                           TASK 5: AUDIO OUTPUT
+%  ========================================================================
+
+fprintf('\n');
+fprintf('#                                                            #\n');
+fprintf('#                 TASK 5: AUDIO SIGNAL OUTPUT                #\n');
+fprintf('#                                                            #\n');
+
+%% Sub-task 5.1: Phase Optimisation
+
+fprintf('\n============================================\n');
+fprintf('       PHASE OPTIMISATION                  \n');
+
+%% Technique 1: Coarse Grid Search
+
+fprintf('\nTechnique 1: Coarse Grid Search\n');
+fprintf('--------------------------------\n');
+
+% Define coarse phase grid (0 to pi, since cos(phi) = cos(-phi) and we 
+% care about |cos(phi)|, and cos(phi + pi) = -cos(phi) just inverts)
+n_coarse = 37;  % 37 points gives 5-degree steps from 0 to 180 degrees
+phi_coarse = linspace(0, pi, n_coarse);
+
+% Preallocate arrays for results
+rms_coarse = zeros(1, n_coarse);
+max_amp_coarse = zeros(1, n_coarse);
+
+fprintf('  Testing %d phase values from 0 to %.0f degrees...\n', n_coarse, 180);
+
+% Test each phase value
+tic;
+for i = 1:n_coarse
+    % Generate carrier with this phase
+    carrier_test = cos(2*pi*fc_final*t + phi_coarse(i));
+    
+    % Mix with bandpass filtered signal
+    x_mixed_test = x_filtered .* carrier_test;
+    
+    % Apply lowpass filter
+    x_demod_test = custom_iir_filter(b_iir, a_iir, x_mixed_test);
+    
+    % Calculate metrics
+    rms_coarse(i) = sqrt(mean(x_demod_test.^2));
+    max_amp_coarse(i) = max(abs(x_demod_test));
+end
+time_coarse = toc;
+
+% Find best phase from coarse search
+[best_rms_coarse, best_idx_coarse] = max(rms_coarse);
+phi_best_coarse = phi_coarse(best_idx_coarse);
+
+fprintf('  Search completed in %.2f seconds\n', time_coarse);
+fprintf('  Best phase (coarse):     %.4f rad (%.2f degrees)\n', phi_best_coarse, phi_best_coarse*180/pi);
+fprintf('  Best RMS amplitude:      %.6f\n', best_rms_coarse);
+
+%% Technique 2: Fine Grid Search (around coarse optimum)
+
+fprintf('\nTechnique 2: Fine Grid Search\n');
+fprintf('------------------------------\n');
+
+% Define fine search range around coarse optimum
+phi_range = pi/18;  % +/- 10 degrees
+phi_fine_min = max(0, phi_best_coarse - phi_range);
+phi_fine_max = min(pi, phi_best_coarse + phi_range);
+n_fine = 41;  % 41 points gives 0.5-degree steps over 20-degree range
+phi_fine = linspace(phi_fine_min, phi_fine_max, n_fine);
+
+% Preallocate arrays
+rms_fine = zeros(1, n_fine);
+max_amp_fine = zeros(1, n_fine);
+
+fprintf('  Refining search from %.2f to %.2f degrees...\n', phi_fine_min*180/pi, phi_fine_max*180/pi);
+
+% Test each fine phase value
+tic;
+for i = 1:n_fine
+    % Generate carrier with this phase
+    carrier_test = cos(2*pi*fc_final*t + phi_fine(i));
+    
+    % Mix with bandpass filtered signal
+    x_mixed_test = x_filtered .* carrier_test;
+    
+    % Apply lowpass filter
+    x_demod_test = custom_iir_filter(b_iir, a_iir, x_mixed_test);
+    
+    % Calculate metrics
+    rms_fine(i) = sqrt(mean(x_demod_test.^2));
+    max_amp_fine(i) = max(abs(x_demod_test));
+end
+time_fine = toc;
+
+% Find best phase from fine search
+[best_rms_fine, best_idx_fine] = max(rms_fine);
+phi_best_fine = phi_fine(best_idx_fine);
+
+fprintf('  Search completed in %.2f seconds\n', time_fine);
+fprintf('  Best phase (fine):       %.4f rad (%.4f degrees)\n', phi_best_fine, phi_best_fine*180/pi);
+fprintf('  Best RMS amplitude:      %.6f\n', best_rms_fine);
+fprintf('  Improvement over coarse: %.4f%%\n', (best_rms_fine/best_rms_coarse - 1)*100);
+
+%% Technique 3: Golden Section Search (efficient optimisation)
+
+fprintf('\nTechnique 3: Golden Section Search\n');
+fprintf('------------------------------------\n');
+
+% Golden ratio
+golden_ratio = (1 + sqrt(5)) / 2;
+
+% Define objective function (negative because we want to maximise)
+function rms_val = calculate_rms_for_phase(phi_test, x_filt, fc, t_vec, b_coef, a_coef)
+    carrier = cos(2*pi*fc*t_vec + phi_test);
+    x_mix = x_filt .* carrier;
+    x_dem = custom_iir_filter(b_coef, a_coef, x_mix);
+    rms_val = sqrt(mean(x_dem.^2));
+end
+
+% Golden section search parameters
+a_gs = 0;           % Lower bound
+b_gs = pi;          % Upper bound
+tol_gs = 1e-6;      % Tolerance (radians)
+max_iter = 50;      % Maximum iterations
+
+% Initial interior points
+c_gs = b_gs - (b_gs - a_gs) / golden_ratio;
+d_gs = a_gs + (b_gs - a_gs) / golden_ratio;
+
+% Evaluate at initial points
+tic;
+fc_val = calculate_rms_for_phase(c_gs, x_filtered, fc_final, t, b_iir, a_iir);
+fd_val = calculate_rms_for_phase(d_gs, x_filtered, fc_final, t, b_iir, a_iir);
+
+iter_count = 0;
+convergence_history = [];
+
+fprintf('  Initial bounds: [%.4f, %.4f] rad\n', a_gs, b_gs);
+
+while (b_gs - a_gs) > tol_gs && iter_count < max_iter
+    iter_count = iter_count + 1;
+    
+    if fc_val > fd_val
+        % Maximum is in [a, d]
+        b_gs = d_gs;
+        d_gs = c_gs;
+        fd_val = fc_val;
+        c_gs = b_gs - (b_gs - a_gs) / golden_ratio;
+        fc_val = calculate_rms_for_phase(c_gs, x_filtered, fc_final, t, b_iir, a_iir);
+    else
+        % Maximum is in [c, b]
+        a_gs = c_gs;
+        c_gs = d_gs;
+        fc_val = fd_val;
+        d_gs = a_gs + (b_gs - a_gs) / golden_ratio;
+        fd_val = calculate_rms_for_phase(d_gs, x_filtered, fc_final, t, b_iir, a_iir);
+    end
+    
+    % Store convergence history
+    convergence_history(iter_count) = (a_gs + b_gs) / 2;
+end
+
+time_golden = toc;
+
+% Final optimum
+phi_best_golden = (a_gs + b_gs) / 2;
+best_rms_golden = calculate_rms_for_phase(phi_best_golden, x_filtered, fc_final, t, b_iir, a_iir);
+
+fprintf('  Iterations:              %d\n', iter_count);
+fprintf('  Search completed in:     %.2f seconds\n', time_golden);
+fprintf('  Best phase (golden):     %.6f rad (%.4f degrees)\n', phi_best_golden, phi_best_golden*180/pi);
+fprintf('  Best RMS amplitude:      %.6f\n', best_rms_golden);
+fprintf('  Final interval width:    %.2e rad\n', b_gs - a_gs);
+
+%% Compare all techniques
+
+fprintf('\nPHASE OPTIMISATION COMPARISON:\n');
+fprintf('-------------------------------\n');
+fprintf('  Technique          Phase (deg)    RMS Amplitude    Time (s)\n');
+fprintf('  ---------          -----------    -------------    --------\n');
+fprintf('  Coarse Grid        %8.4f       %.6f         %.2f\n', phi_best_coarse*180/pi, best_rms_coarse, time_coarse);
+fprintf('  Fine Grid          %8.4f       %.6f         %.2f\n', phi_best_fine*180/pi, best_rms_fine, time_fine);
+fprintf('  Golden Section     %8.4f       %.6f         %.2f\n', phi_best_golden*180/pi, best_rms_golden, time_golden);
+
+% Select the best overall phase
+[~, best_technique] = max([best_rms_coarse, best_rms_fine, best_rms_golden]);
+phi_values = [phi_best_coarse, phi_best_fine, phi_best_golden];
+rms_values = [best_rms_coarse, best_rms_fine, best_rms_golden];
+technique_names = {'Coarse Grid', 'Fine Grid', 'Golden Section'};
+
+phi_optimal = phi_values(best_technique);
+rms_optimal = rms_values(best_technique);
+
+fprintf('\nOPTIMAL PHASE SELECTED:\n');
+fprintf('  Technique:               %s\n', technique_names{best_technique});
+fprintf('  Optimal phase:           %.6f rad (%.4f degrees)\n', phi_optimal, phi_optimal*180/pi);
+fprintf('  cos(phi_optimal):        %.6f\n', cos(phi_optimal));
+fprintf('  Expected amplitude scale: %.4f (= 0.5 * |cos(phi)|)\n', 0.5 * abs(cos(phi_optimal)));
+
+%% Plot optimisation results
+
+figure('Name', 'Phase Optimisation Results', 'Position', [100, 100, 1200, 800]);
+
+% Plot 1: Coarse grid search results
+subplot(2,2,1);
+plot(phi_coarse*180/pi, rms_coarse, 'b.-', 'LineWidth', 1.5, 'MarkerSize', 10);
+hold on;
+plot(phi_best_coarse*180/pi, best_rms_coarse, 'ro', 'MarkerSize', 15, 'LineWidth', 2);
+hold off;
+xlabel('Phase (degrees)', 'FontSize', 11);
+ylabel('RMS Amplitude', 'FontSize', 11);
+title('Coarse Grid Search (5° steps)', 'FontSize', 12);
+legend('RMS vs Phase', sprintf('Optimum: %.1f°', phi_best_coarse*180/pi), 'Location', 'best');
+grid on;
+xlim([0, 180]);
+
+% Plot 2: Fine grid search results
+subplot(2,2,2);
+plot(phi_fine*180/pi, rms_fine, 'g.-', 'LineWidth', 1.5, 'MarkerSize', 10);
+hold on;
+plot(phi_best_fine*180/pi, best_rms_fine, 'ro', 'MarkerSize', 15, 'LineWidth', 2);
+hold off;
+xlabel('Phase (degrees)', 'FontSize', 11);
+ylabel('RMS Amplitude', 'FontSize', 11);
+title('Fine Grid Search (0.5° steps)', 'FontSize', 12);
+legend('RMS vs Phase', sprintf('Optimum: %.2f°', phi_best_fine*180/pi), 'Location', 'best');
+grid on;
+
+% Plot 3: Golden section convergence
+subplot(2,2,3);
+plot(1:iter_count, convergence_history*180/pi, 'm.-', 'LineWidth', 1.5, 'MarkerSize', 10);
+hold on;
+yline(phi_best_golden*180/pi, 'r--', 'LineWidth', 1.5);
+hold off;
+xlabel('Iteration', 'FontSize', 11);
+ylabel('Phase Estimate (degrees)', 'FontSize', 11);
+title('Golden Section Search Convergence', 'FontSize', 12);
+legend('Phase estimate', sprintf('Final: %.4f°', phi_best_golden*180/pi), 'Location', 'best');
+grid on;
+
+% Plot 4: Theoretical cos(phi) curve vs measured
+subplot(2,2,4);
+phi_theory = linspace(0, pi, 100);
+cos_theory = abs(cos(phi_theory));
+% Normalise measured RMS to compare shape
+rms_normalised = rms_coarse / max(rms_coarse);
+
+plot(phi_theory*180/pi, cos_theory, 'k-', 'LineWidth', 2);
+hold on;
+plot(phi_coarse*180/pi, rms_normalised, 'b.', 'MarkerSize', 15);
+plot(phi_optimal*180/pi, abs(cos(phi_optimal)), 'ro', 'MarkerSize', 15, 'LineWidth', 2);
+hold off;
+xlabel('Phase (degrees)', 'FontSize', 11);
+ylabel('Normalised Amplitude', 'FontSize', 11);
+title('Measured vs Theoretical |cos(\phi)|', 'FontSize', 12);
+legend('Theoretical |cos(\phi)|', 'Measured (normalised)', sprintf('Optimal: %.1f°', phi_optimal*180/pi), 'Location', 'best');
+grid on;
+xlim([0, 180]);
+
+%% Sub-task 5.2: Generate Optimally Demodulated Signal
+
+fprintf('\n============================================\n');
+fprintf('       FINAL DEMODULATION                  \n');
+
+% Generate carrier with optimal phase
+carrier_optimal = cos(2*pi*fc_final*t + phi_optimal);
+
+% Mix with bandpass filtered signal
+x_mixed_optimal = x_filtered .* carrier_optimal;
+
+% Apply lowpass filter
+x_final = custom_iir_filter(b_iir, a_iir, x_mixed_optimal);
+
+fprintf('  Carrier frequency:       %d Hz\n', fc_final);
+fprintf('  Optimal phase:           %.4f rad (%.2f degrees)\n', phi_optimal, phi_optimal*180/pi);
+fprintf('  Final signal length:     %d samples (%.2f seconds)\n', length(x_final), length(x_final)/fs);
+
+%% Sub-task 5.3: SNR Measurement
+
+fprintf('\n============================================\n');
+fprintf('       SNR MEASUREMENT                     \n');
+
+% Compute spectrum of final demodulated signal
+window_final = hamming(length(x_final))';
+x_final_windowed = x_final .* window_final;
+X_final = fft(x_final_windowed);
+X_final_magnitude = abs(X_final) / length(X_final);
+
+N_final = length(X_final);
+X_final_single = X_final_magnitude(1:floor(N_final/2)+1);
+X_final_single(2:end-1) = 2 * X_final_single(2:end-1);
+f_final = (0:floor(N_final/2)) * fs / N_final;
+X_final_dB = 20 * log10(X_final_single + eps);
+
+%% Method 1: Speech band vs out-of-band noise
+
+fprintf('\nMethod 1: Speech Band Power vs Out-of-Band Noise\n');
+fprintf('-------------------------------------------------\n');
+
+% Define frequency bands
+speech_low = 300;       % Speech starts around 300 Hz
+speech_high = 3400;     % Speech ends around 3400 Hz (telephone quality)
+noise_low = 3800;       % Noise region above speech
+noise_high = 4000;      % Up to filter cutoff
+
+% Calculate power in speech band
+speech_idx = find(f_final >= speech_low & f_final <= speech_high);
+speech_power = sum(X_final_single(speech_idx).^2);
+
+% Calculate power in noise region (just above speech)
+noise_idx = find(f_final >= noise_low & f_final <= noise_high);
+if ~isempty(noise_idx)
+    noise_power_method1 = sum(X_final_single(noise_idx).^2);
+    % Scale to equivalent bandwidth
+    noise_bw = noise_high - noise_low;
+    speech_bw = speech_high - speech_low;
+    noise_power_scaled = noise_power_method1 * (speech_bw / noise_bw);
+    snr_method1 = 10 * log10(speech_power / noise_power_scaled);
+else
+    snr_method1 = NaN;
+end
+
+fprintf('  Speech band:             %d - %d Hz\n', speech_low, speech_high);
+fprintf('  Speech power:            %.6e\n', speech_power);
+fprintf('  Noise band:              %d - %d Hz\n', noise_low, noise_high);
+fprintf('  Noise power (scaled):    %.6e\n', noise_power_scaled);
+fprintf('  SNR (Method 1):          %.2f dB\n', snr_method1);
+
+%% Method 2: Signal peaks vs RMS noise floor
+
+fprintf('\nMethod 2: Peak Signal vs RMS Noise Floor\n');
+fprintf('------------------------------------------\n');
+
+% Find spectral peaks (signal components)
+[peaks, peak_locs] = findpeaks(X_final_single, 'MinPeakHeight', max(X_final_single)*0.1);
+peak_freqs = f_final(peak_locs);
+
+% Only consider peaks in speech band
+speech_peak_idx = find(peak_freqs >= speech_low & peak_freqs <= speech_high);
+if ~isempty(speech_peak_idx)
+    signal_power_peaks = sum(peaks(speech_peak_idx).^2);
+else
+    signal_power_peaks = speech_power;
+end
+
+% Estimate noise floor as median of spectrum (robust to peaks)
+noise_floor = median(X_final_single(speech_idx));
+noise_power_method2 = noise_floor^2 * length(speech_idx);
+
+snr_method2 = 10 * log10(signal_power_peaks / noise_power_method2);
+
+fprintf('  Number of peaks found:   %d\n', length(speech_peak_idx));
+fprintf('  Signal power (peaks):    %.6e\n', signal_power_peaks);
+fprintf('  Noise floor (median):    %.6e\n', noise_floor);
+fprintf('  Noise power:             %.6e\n', noise_power_method2);
+fprintf('  SNR (Method 2):          %.2f dB\n', snr_method2);
+
+%% Method 3: Time-domain SNR estimation using signal envelope
+
+fprintf('\nMethod 3: Time-Domain Envelope Analysis\n');
+fprintf('-----------------------------------------\n');
+
+% Compute signal envelope using Hilbert transform
+signal_envelope = abs(hilbert(x_final));
+
+% Estimate signal power from envelope peaks
+envelope_threshold = 0.3 * max(signal_envelope);
+signal_samples = signal_envelope > envelope_threshold;
+signal_power_time = mean(x_final(signal_samples).^2);
+
+% Estimate noise power from quiet regions
+noise_samples = signal_envelope < 0.1 * max(signal_envelope);
+if sum(noise_samples) > 100
+    noise_power_time = mean(x_final(noise_samples).^2);
+else
+    % If no quiet regions, use overall variance minus signal
+    noise_power_time = var(x_final) - signal_power_time * mean(signal_samples);
+    noise_power_time = max(noise_power_time, eps);  % Ensure positive
+end
+
+snr_method3 = 10 * log10(signal_power_time / noise_power_time);
+
+fprintf('  Signal samples:          %d (%.1f%% of total)\n', sum(signal_samples), 100*mean(signal_samples));
+fprintf('  Signal power:            %.6e\n', signal_power_time);
+fprintf('  Noise samples:           %d (%.1f%% of total)\n', sum(noise_samples), 100*mean(noise_samples));
+fprintf('  Noise power:             %.6e\n', noise_power_time);
+fprintf('  SNR (Method 3):          %.2f dB\n', snr_method3);
+
+%% Method 4: Compare with phi = 0 (unoptimised)
+
+fprintf('\nMethod 4: Improvement from Phase Optimisation\n');
+fprintf('-----------------------------------------------\n');
+
+% Calculate RMS with phi = 0
+carrier_zero = cos(2*pi*fc_final*t);
+x_mixed_zero = x_filtered .* carrier_zero;
+x_demod_zero = custom_iir_filter(b_iir, a_iir, x_mixed_zero);
+rms_zero = sqrt(mean(x_demod_zero.^2));
+
+% Calculate RMS with optimal phase
+rms_final = sqrt(mean(x_final.^2));
+
+% Calculate improvement
+amplitude_improvement = rms_final / rms_zero;
+power_improvement_dB = 20 * log10(amplitude_improvement);
+
+fprintf('  RMS with phi = 0:        %.6f\n', rms_zero);
+fprintf('  RMS with phi optimal:    %.6f\n', rms_final);
+fprintf('  Amplitude improvement:   %.4fx\n', amplitude_improvement);
+fprintf('  Power improvement:       %.2f dB\n', power_improvement_dB);
+
+%% SNR Summary
+
+fprintf('\nSNR MEASUREMENT SUMMARY:\n');
+fprintf('-------------------------\n');
+fprintf('  Method 1 (Frequency bands):     %.2f dB\n', snr_method1);
+fprintf('  Method 2 (Peaks vs floor):      %.2f dB\n', snr_method2);
+fprintf('  Method 3 (Time envelope):       %.2f dB\n', snr_method3);
+fprintf('  Average SNR:                    %.2f dB\n', mean([snr_method1, snr_method2, snr_method3], 'omitnan'));
+
+%% Plot SNR analysis
+
+figure('Name', 'SNR Analysis', 'Position', [100, 100, 1200, 800]);
+
+% Plot 1: Spectrum with frequency bands marked
+subplot(2,2,1);
+plot(f_final/1000, X_final_dB, 'b', 'LineWidth', 1);
+hold on;
+% Mark speech band
+xline(speech_low/1000, 'g--', 'LineWidth', 1.5);
+xline(speech_high/1000, 'g--', 'LineWidth', 1.5);
+% Mark noise band
+xline(noise_low/1000, 'r--', 'LineWidth', 1.5);
+xline(noise_high/1000, 'r--', 'LineWidth', 1.5);
+% Mark noise floor
+yline(20*log10(noise_floor + eps), 'm--', 'LineWidth', 1.5);
+hold off;
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title('Demodulated Signal Spectrum with Analysis Bands', 'FontSize', 12);
+legend('Spectrum', 'Speech band', '', 'Noise band', '', 'Noise floor', 'Location', 'northeast');
+grid on;
+xlim([0, 5]);
+
+% Plot 2: Time-domain envelope
+subplot(2,2,2);
+plot(t, x_final, 'b', 'LineWidth', 0.5);
+hold on;
+plot(t, signal_envelope, 'r', 'LineWidth', 1);
+yline(envelope_threshold, 'g--', 'LineWidth', 1.5);
+yline(0.1*max(signal_envelope), 'm--', 'LineWidth', 1.5);
+hold off;
+xlabel('Time (seconds)', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Signal and Envelope for SNR Estimation', 'FontSize', 12);
+legend('Signal', 'Envelope', 'Signal threshold', 'Noise threshold', 'Location', 'best');
+grid on;
+
+% Plot 3: Comparison phi=0 vs phi optimal
+subplot(2,2,3);
+plot_duration = 0.1;  % 100 ms
+plot_samples = round(plot_duration * fs);
+plot_start = round(length(t) / 2);
+plot_end = min(plot_start + plot_samples, length(t));
+t_portion = t(plot_start:plot_end);
+
+plot(t_portion, x_demod_zero(plot_start:plot_end), 'b', 'LineWidth', 1);
+hold on;
+plot(t_portion, x_final(plot_start:plot_end), 'r', 'LineWidth', 1.5);
+hold off;
+xlabel('Time (seconds)', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Phase Optimisation Effect (100 ms portion)', 'FontSize', 12);
+legend(sprintf('\\phi = 0° (RMS = %.4f)', rms_zero), ...
+       sprintf('\\phi = %.1f° (RMS = %.4f)', phi_optimal*180/pi, rms_final), 'Location', 'best');
+grid on;
+
+% Plot 4: SNR comparison bar chart
+subplot(2,2,4);
+snr_values = [snr_method1, snr_method2, snr_method3];
+bar_colors = [0.2 0.6 0.8; 0.8 0.4 0.2; 0.4 0.8 0.4];
+b = bar(1:3, snr_values);
+b.FaceColor = 'flat';
+b.CData = bar_colors;
+hold on;
+yline(mean(snr_values, 'omitnan'), 'k--', 'LineWidth', 2);
+hold off;
+set(gca, 'XTickLabel', {'Freq. Bands', 'Peaks/Floor', 'Time Envelope'});
+xlabel('SNR Estimation Method', 'FontSize', 11);
+ylabel('SNR (dB)', 'FontSize', 11);
+title('SNR Estimates by Different Methods', 'FontSize', 12);
+legend('SNR', sprintf('Average: %.1f dB', mean(snr_values, 'omitnan')), 'Location', 'best');
+grid on;
+
+%% Sub-task 5.4: Audio Playback and Message Identification
+
+fprintf('       AUDIO PLAYBACK                      \n');
+
+% Normalise for playback (prevent clipping)
+x_playback = x_final / max(abs(x_final)) * 0.9;
+
+fprintf('  Playing demodulated audio...\n');
+fprintf('  Listen carefully for the 3-letter message!\n');
+
+% Play the audio
+sound(x_playback, fs);
+
+% Wait for playback to complete
+pause(length(x_playback)/fs + 0.5);
+
+fprintf('\n  Playback complete.\n');
+
+%% Save audio file for reference
+
+output_filename = 'demodulated_message.wav';
+audiowrite(output_filename, x_playback, fs);
+fprintf('\n  Audio saved to: %s\n', output_filename);
+
+%% Final message identification prompt
+
+fprintf('#                 MESSAGE IDENTIFICATION                     #\n');
+fprintf('\n');
+fprintf('  Listen to the audio output and identify the 3-letter message.\n');
+fprintf('\n');
+fprintf('  Enter the message you heard: ');
+message = input('', 's');
+fprintf('\n');
+fprintf('  You identified the message as: %s\n', upper(message));
+fprintf('\n');
+
+%% Complete summary
+
+fprintf('\n');
+fprintf('#                 DEMODULATION COMPLETE                      #\n');
+fprintf('\n');
+fprintf('SIGNAL PROCESSING CHAIN SUMMARY:\n');
+fprintf('  Task 1: Time/Frequency Analysis\n');
+fprintf('    - Carrier frequency identified: %d Hz\n', fc_final);
+fprintf('    - AM band: %d - %d Hz\n', fmin, fmax);
+fprintf('\n');
+fprintf('  Task 2: FIR Bandpass Filter\n');
+fprintf('    - Filter order: %d taps\n', length(h_bp));
+fprintf('    - Passband: %d - %d Hz\n', fmin, fmax);
+fprintf('    - Window: Hamming\n');
+fprintf('\n');
+fprintf('  Task 3: Carrier Recovery and Mixing\n');
+fprintf('    - Carrier recovered via square law at 2f_c = %d Hz\n', 2*fc_final);
+fprintf('    - Mixed to baseband (0-4 kHz)\n');
+fprintf('\n');
+fprintf('  Task 4: IIR Lowpass Filter\n');
+fprintf('    - 4th order Butterworth\n');
+fprintf('    - Cutoff frequency: %d Hz\n', fc_lowpass);
+fprintf('\n');
+fprintf('  Task 5: Phase Optimisation and Audio Output\n');
+fprintf('    - Optimal phase: %.2f degrees\n', phi_optimal*180/pi);
+fprintf('    - Estimated SNR: %.1f dB (average)\n', mean([snr_method1, snr_method2, snr_method3], 'omitnan'));
+fprintf('    - Message identified: %s\n', upper(message));
+fprintf('\n');
+fprintf('##############################################################\n');
