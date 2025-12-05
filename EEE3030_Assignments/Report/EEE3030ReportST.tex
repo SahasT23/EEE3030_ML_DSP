@@ -321,6 +321,107 @@ This improvement is crucial for accurately identifying the carrier frequency and
 
 \subsection{Task 2}
 
+The main focus of Task 2 is the design and implementation of a bandpass FIR filter to isolate the desired frequency components of the AM signal. This section will detail the filter design process, including the selection of filter parameters, the implementation of the filter in MATLAB, and the analysis of the filtered signal in both time and frequency domains.
+
+\subsubsection{Filter Design and Output Verification}
+
+\textbf{Procedure}\\
+The bandpass FIR filter was designed using the window method, specifically employing a Hamming window to shape the filter's impulse response. The filter parameters were determined based on the estimated carrier frequency and the message bandwidth identified in Task 1.
+The filter design specifications are as follows:
+
+\begin{table}[H]
+\centering
+\caption{Bandpass FIR Filter Design Specifications}
+\begin{tabular}{|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Value} \\
+\hline
+$F_{min}$ (passband frequency)& $12kHz$ \\
+\hline
+$F_{max}$ (passband frequency)& $20kHz$ \\
+\hline
+Stopband frequencies & $10kHz$, $22kHz$ \\
+\hline
+Max Passband Ripple & $0.1dB$ \\
+\hline
+Stopband Attenuation & $50dB$ \\
+\hline
+\end{tabular}
+\label{tab:filter_specs}
+\end{table}
+
+The filter was implemented with a custom convolution function to apply the FIR filter to the AM signal. The frequency response of the designed filter was analysed to ensure it met the specified design criteria.
+The following shows the mathematical design of the FIR filter using the window method:
+
+\begin{equation}
+h[n] = h_d[n] \cdot w[n]
+\end{equation}
+
+Where \( h_d[n] \) is the ideal impulse response of the bandpass filter and \( w[n] \) is the Hamming window function.
+The ideal impulse response for a bandpass filter is given by:
+
+\begin{equation}
+h_d[n] = \frac{2f_{max}}{f_s} \text{sinc}\left(\frac{2f_{max}n}{f_s}\right) - \frac{2f_{min}}{f_s} \text{sinc}\left(\frac{2f_{min}n}{f_s}\right)  
+\end{equation}
+
+The filter order was determined based on the desired stopband attenuation and transition width, ensuring that the filter effectively attenuated frequencies outside the passband while preserving the integrity of the desired signal components.
+
+We can then substitute our requirements into the above equations to get the final filter coefficients, which can then be used in the convolution process to filter the AM signal.
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 2: FIR Filter Design Code},label={lst:task2_code}]
+fp1 = fmin;  % Lower passband edge (fc - 4kHz) % Passband edges
+fp2 = fmax;  % Upper passband edge (fc + 4kHz)
+
+fstop1 = fmin - 2000;  % Lower stopband edge % Stopband edges
+fstop2 = fmax + 2000;  % Upper stopband edge
+
+passband_ripple_dB = 0.1; % Initial requirements
+stopband_atten_dB = 50;
+
+% Transition bandwidth
+transition_bw = fp1 - fstop1;  % = 2000 Hz
+
+%% Estimate Filter Order
+% Using Hamming window formula: N = 3.3 * fs / transition_bw
+N_estimated = ceil(6.0 * fs / transition_bw); % need to change back
+
+% Make it odd for Type I FIR (symmetric)
+if mod(N_estimated, 2) == 0
+    N_estimated = N_estimated + 1;
+end
+
+fprintf('\nEstimated filter order: %d taps\n', N_estimated);
+
+M = N_estimated;  % Filter length
+
+%% Design Ideal Bandpass Impulse Response
+% Normalize frequencies to [0, 1] where 1 is Nyquist (fs/2)
+wc1 = 2 * fp1 / fs;  % Normalized lower cutoff
+wc2 = 2 * fp2 / fs;  % Normalized upper cutoff
+
+% Center point of filter
+M_center = (M - 1) / 2;
+
+% Ideal bandpass impulse response
+h_ideal = zeros(1, M);
+for i = 1:M
+    if i == M_center + 1  % Handle n = 0 case (avoid division by zero)
+        h_ideal(i) = wc2 - wc1;
+    else
+        % Sinc functions for bandpass
+        n = i - M_center - 1;
+        h_ideal(i) = (sin(pi * wc2 * n) - sin(pi * wc1 * n)) / (pi * n);
+    end
+end
+\end{lstlisting}
+
+The code snippet (Listing \ref{lst:task2_code}) demonstrates the design of the bandpass FIR filter using the impulse response truncation method. It calculates the ideal impulse response and applies the Hamming window to obtain the final filter coefficients.
+The designed FIR filter was then applied to the AM signal using convolution, effectively isolating the desired frequency components while attempting to attenuate the unwanted noise and interference.
+
+\subsubsection{Output Verification and Discussion}
+
+The output of the bandpass FIR filter was verified by analysing the filtered signal in both time and frequency domains. The time-domain representation of the filtered signal was examined to ensure that the desired message signal was preserved, while the frequency-domain analysis confirmed that the filter effectively attenuated frequencies outside the specified passband. From the frequency response plot of the filter, it is evident that the designed FIR filter meets the specified design criteria, with a clear passband between $12kHz$ and $20kHz$, and significant attenuation in the stopbands.
+
 \section{Conclusion}
 
 explain what was done in the report and summarise the results obtained. Talk about any challenges faced and how they were overcome. Discuss any potential improvements or future work that could be done based on the findings of the report.

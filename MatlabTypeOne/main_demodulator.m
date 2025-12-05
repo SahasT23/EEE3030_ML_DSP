@@ -171,8 +171,8 @@ end
 % The message bandwidth B = 4kHz
 % Therefore, bandpass filter should be fc ± 4kHz
 
-fmin = fc_estimated - 3800;  % fc - 4kHz
-fmax = fc_estimated + 3700;  % fc + 4kHz
+fmin = fc_estimated - 3300;  % fc - 4kHz
+fmax = fc_estimated + 3300;  % fc + 4kHz
 
 fprintf('\n=== Bandpass Filter Design Parameters ===\n');
 fprintf('Carrier frequency (fc): %.0f Hz (%.2f kHz)\n', fc_estimated, fc_estimated/1000);
