@@ -15,20 +15,6 @@ function y = custom_iir_filter(b, a, x)
 %
 % OUTPUT:
 %   y - Filtered output signal, same size as x
-%
-% THEORY:
-%   The IIR filter implements the difference equation:
-%   y[n] = b(1)*x[n] + b(2)*x[n-1] + ... + b(M+1)*x[n-M]
-%          - a(2)*y[n-1] - a(3)*y[n-2] - ... - a(N+1)*y[n-N]
-%
-%   Note: MATLAB uses 1-based indexing, so:
-%   - b(1) corresponds to b_0 in the mathematical notation
-%   - a(1) corresponds to a_0 (should be 1)
-%   - a(2) corresponds to a_1, etc.
-%
-% AUTHOR: [Your Name]
-% DATE: December 2025
-% MODULE: EEE3030 Signal Processing and Machine Learning
 
 %% Input validation and preparation
 

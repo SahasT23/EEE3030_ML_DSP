@@ -1,0 +1,1794 @@
+\documentclass[a4paper,12pt]{article}
+\input{EEE3030Header}
+\graphicspath{{../Images/}}
+
+% Define custom colors for listings if not already defined
+\usepackage{xcolor}
+\definecolor{MyDarkGreen}{rgb}{0,0.6,0}
+
+\begin{document}
+%----------------------------------------------------------------------------------------
+%	TITLE+
+%----------------------------------------------------------------------------------------
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    \Huge{\textbf{EEE3030 Signal Processing and Machine Learning}}\\[0.5cm]
+    \Large{\textbf{Semester 1 Report}}\\ 
+    \Large{Sahas Talasila \textit{230057896}}
+    \vfill
+\end{titlepage}
+
+% Table of Contents
+\tableofcontents
+\newpage
+
+%----------------------------------------------------------------------------------------
+%	SECTION 1
+%----------------------------------------------------------------------------------------
+
+\begin{abstract}
+This report presents the demodulation of a double-sideband suppressed-carrier (DSB-SC) amplitude modulated signal to recover a three-letter spoken message. Through time and frequency domain analysis, the carrier frequency was identified as 16~kHz with a message bandwidth of 4~kHz. A custom 159-tap FIR bandpass filter, designed using the impulse response truncation method with Hamming windowing, achieved 53.64~dB stopband attenuation and improved the signal-to-noise ratio by 64.39~dB. Carrier recovery was performed using square-law detection, and coherent demodulation was completed with a 4th-order Butterworth IIR lowpass filter. Phase optimisation at $120^\circ$ maximised the demodulated signal amplitude, yielding a final SNR of 16.89~dB and successful recovery of the message ``KVH''.
+\end{abstract}
+
+%----------------------------------------------------------------------------------------
+%	SECTION 2
+%----------------------------------------------------------------------------------------
+
+\section{Introduction}
+
+Amplitude modulation (AM) is a fundamental technique in communication systems whereby information is encoded onto a carrier signal by varying its amplitude. In double-sideband suppressed-carrier (DSB-SC) modulation, the carrier itself is not transmitted, requiring coherent demodulation with accurate carrier recovery at the receiver. This report documents the complete demodulation of a DSB-SC signal containing a spoken three-letter message embedded in additive noise.
+
+The demodulation process comprises several stages: initial signal analysis to characterise the AM parameters; bandpass filtering to isolate the signal band and suppress out-of-band noise; carrier recovery using square-law detection; coherent mixing with a locally generated carrier; and lowpass filtering to extract the baseband message. Each stage requires careful filter design to meet specified performance criteria whilst preserving signal integrity.
+
+Custom implementations of both finite impulse response (FIR) and infinite impulse response (IIR) filters were developed, demonstrating the theoretical principles underlying digital filter design. The FIR bandpass filter was designed using the impulse response truncation method with Hamming windowing, whilst the IIR lowpass filter employed the bilinear transform of a Butterworth prototype.
+
+\textbf{Note:} Throughout this report, plotting and terminal output code has been omitted from listings for clarity. Complete implementations are available in the Appendix.
+
+\newpage
+
+\section{Procedure, Results and Discussion}
+
+\subsection{Task 1 Audio File Analysis and Transformation}
+
+% CHANGE: Condensed from two sentences to one - removed redundant "Time and frequency domain analysis of the audio file"
+This task analyses the provided audio file (Sahas\_Talasila.wav) in both time and frequency domains to extract key signal properties.
+
+\subsubsection{Task 1 Audio File Information}
+
+% CHANGE: Removed "Some basic information about the audio file needs to be extracted first" - obvious filler
+Loading a \texttt{.wav} file in MATLAB yields two key pieces of information:
+
+\begin{itemize}
+    \item The discrete-time signal samples: $x[n]$
+    \item The sampling frequency: $f_s$ (samples per second)
+\end{itemize}
+
+% CHANGE: Removed "From these, we can determine several important properties that guide our signal analysis" - filler
+
+% CHANGE: Condensed explanation - removed "which is needed to understand the time span of the audio file" (obvious)
+If $N$ is the total number of samples, then the duration of the signal is given by \textit{Equation 1}:
+
+\begin{equation}
+  T_{\text{duration}} = \frac{N}{f_s}  
+\end{equation}
+
+% CHANGE: MAJOR REWRITE - consolidated two paragraphs into one tighter explanation with added insight about AM demodulation relevance
+The frequency resolution (bin width) determines the minimum separation between distinguishable spectral components, as shown in \textit{Equation 2}. For AM demodulation, sub-Hz resolution ensures the carrier and sideband edges can be precisely identified, which is critical for accurate filter design in later tasks.
+
+\begin{equation}
+    \Delta f = \frac{f_s}{N}
+\end{equation}
+
+For example, with $f_s = 96\,\text{kHz}$ and $N = 96000$ and using \textit{Equation 2}, the user would obtain:
+
+\[
+\Delta f = 1\,\text{Hz}
+\]
+
+% CHANGE: Added insight about WHY Nyquist matters for AM specifically
+The Nyquist theorem states that the highest frequency that can be correctly represented is half the sampling frequency, using \textit{Equation 3}:
+
+\begin{equation}
+f_{\text{Nyquist}} = \frac{f_s}{2}
+\end{equation}
+
+For $f_s = 96\,\text{kHz}$:
+
+\[
+f_{\text{Nyquist}} = 48\,\text{kHz}
+\]
+
+% CHANGE: Added insight - explains WHY this is sufficient (carrier + sidebands must fit below Nyquist to avoid aliasing)
+This is sufficient for AM signals with carriers in the tens of kHz and bandwidths of a few kHz, as the entire modulated spectrum ($f_c \pm B$) must fit below the Nyquist frequency to avoid aliasing distortion.
+
+% CHANGE: Removed "Other pieces of information can be seen from the code below, for example, a visual plot of the signal in the time domain" - vague filler
+
+\textbf{Code and Explanation}
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 1 Part 1: Time Domain Analysis},label={lst:timedomain_code}]
+filename = 'Sahas_Talasila.wav';
+[x, fs] = audioread(filename);
+% If stereo, convert to mono by taking first channel
+if size(x, 2) > 1
+    x = x(:, 1);
+    fprintf('Note: Stereo file detected, using first channel only.\n\n');
+end
+% audioread() returns a column vector, but we need row vectors throughout
+if iscolumn(x)
+    x = x';  % Transpose to row vector
+end
+%% Calculate basic signal properties
+N = length(x);                      % Total number of samples
+duration = N / fs;                  % Signal duration in seconds
+freq_resolution = fs / N;           % Frequency resolution (bin width) in Hz
+nyquist_freq = fs / 2;              % Maximum representable frequency
+%% Calculate amplitude statistics
+max_amplitude = max(x);
+min_amplitude = min(x);
+peak_to_peak = max_amplitude - min_amplitude;
+rms_amplitude = sqrt(mean(x.^2));
+%% Sub-task 1.2: Time Domain Analysis
+% Create time vector
+t = (0:N-1) / fs;
+% Plotting Logic, removed for readability
+\end{lstlisting}
+
+\textbf{Code Output and Explanation}\\
+% CHANGE: Condensed - removed "The code above implements the ideas mentioned in the Procedure paragraph" (obvious)
+The code reads the audio file and converts it to a row vector, handling stereo channels by selecting the first channel to ensure consistent downstream processing.
+
+% CHANGE: Trimmed bullet list - removed obvious items, kept only those needing explanation
+The following key properties are calculated:
+
+\begin{itemize}
+  \item Sample count $N$ (determines frequency resolution via $\Delta f = f_s/N$)
+  \item Frequency resolution (0.39 Hz — sufficient to resolve closely-spaced spectral features)
+  \item Nyquist frequency (48 kHz — sets the upper frequency limit for analysis)
+  % CHANGE: Added insight about RMS
+  \item RMS amplitude (represents average signal power, providing a baseline for comparing signal quality before and after filtering)
+\end{itemize}
+
+\textbf{Results and Discussion}\\
+The terminal output shown in \textbf{Figure~\ref{fig:T1AudioInfo}} verifies the theoretical calculations.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.4]{T1P1TermAudioInfo.png}
+    \caption{Terminal output showing information about the audio file}
+    \label{fig:T1AudioInfo}
+\end{figure}
+
+% CHANGE: Condensed verification paragraph - removed redundant "this confirms" phrasing
+The sampling frequency of $f_s = 96000$~Hz confirms correct recording and frequency scaling for subsequent analysis. The signal duration is $2.54$~seconds.
+
+% CHANGE: Added insight about WHY 0.39 Hz resolution matters for filter design
+The frequency resolution of $0.39$~Hz, achieved through a large sample count ($N = 244104$), enables precise identification of the AM band edges. This resolution directly influences the accuracy of the bandpass filter cutoff frequencies designed in Task~2.
+
+% CHANGE: Condensed amplitude statistics - removed vague "standardised method for measuring performance"
+Amplitude statistics: The RMS amplitude provides a baseline for quantifying SNR improvements after filtering. Peak-to-peak range indicates dynamic range but is not directly required for demodulation.
+
+\textbf{Figure~\ref{fig:T1TDSig}} also shows the signal in the time domain:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T1Part1InitialSignalTimeDomain.png}
+    \caption{Input signal in the time domain}
+    \label{fig:T1TDSig}
+\end{figure}
+
+% CHANGE: Enhanced results discussion - added interpretation of peak spacing, amplitude variation, and SNR assessment
+The plot reveals three significant peaks at approximately $0.5$, $1.2$ and $1.9$~seconds. The $\sim$0.7~s spacing suggests a character transmission rate of roughly 1.4~characters/second. The varying peak amplitudes indicate different letters, as each character's spectral content produces distinct envelope shapes. The uniform baseline oscillations confirm additive white noise (equal power across all frequencies). Visually, the peaks are distinguishable but noise-contaminated, confirming that filtering is necessary before reliable demodulation.
+
+However, the time domain cannot reveal $f_c$ or bandwidth—frequency domain analysis is required for filter design.
+
+\subsubsection{Task 1, Frequency Domain and Spectrogram Analysis}
+
+\textbf{Procedure and Theory}\\
+% CHANGE: Minor tightening - "allowing the easy identification" -> "enabling identification"
+The Discrete Fourier Transform (DFT) decomposes a discrete time-domain signal into its frequency components, enabling identification of the carrier frequency $f_c$ and determination of the AM signal band. For a signal $x[n]$ of length $N$, the DFT is defined as:
+
+\begin{equation}
+X[k] = \sum_{n=0}^{N-1} x[n]\,e^{-j\frac{2\pi kn}{N}},  
+\end{equation}
+
+where $X[k]$ is the complex spectrum at bin $k$, and the exponential term represents a complex sinusoid at that frequency. Large values of $|X[k]|$ indicate strong frequency content at that bin (\textit{Equation 4}).
+
+% CHANGE: Added insight about WHY FFT complexity matters
+The Fast Fourier Transform (FFT) computes the same result as the DFT but reduces the complexity from $O(N^2)$ to $O(N\log_2 N)$. For a signal with $N = 244104$ samples, this represents a speedup factor of approximately 14,000, making real-time spectral analysis practical.
+
+Each frequency bin maps to a physical frequency:
+
+\begin{equation}
+f[k] = \frac{k f_s}{N},  
+\end{equation}
+
+so $k=0$ corresponds to DC, $k=N/2$ to the Nyquist frequency, and bins above $N/2$ represent negative frequencies.
+
+The FFT magnitude scales with $N$, so amplitude normalisation is performed using:
+
+\begin{equation}
+  |X[k]|_{\text{norm}} = \frac{|X[k]|}{N}.
+\end{equation}
+
+% CHANGE: Added insight about WHY we use single-sided spectrum
+For real signals, the spectrum is symmetric about DC, so a single-sided spectrum is obtained by keeping bins $0$ to $N/2$ and doubling all non-DC and non-Nyquist bins. This avoids redundancy whilst preserving correct amplitude representation:
+\[
+|X[k]|_{\text{ss}} = 
+\begin{cases}
+\dfrac{|X[k]|}{N}, & k=0 \text{ or } k=\frac{N}{2},\\[6pt]
+\dfrac{2|X[k]|}{N}, & \text{otherwise}.
+\end{cases}
+\]
+
+% CHANGE: Added insight about WHY dB scaling is essential for filter design
+To visualise components spanning different magnitudes, the spectrum is converted to decibels:
+\[
+X_{\text{dB}}[k] = 20\log_{10}\!\left(|X[k]|_{\text{norm}}\right),
+\]
+where a tenfold increase in amplitude corresponds to $+20$\,dB. This logarithmic scaling is essential for filter design, as it reveals both the strong carrier/sidebands and the weaker noise floor on the same plot — information needed to set appropriate stopband attenuation requirements.
+
+\textbf{Code and Explanations}
+
+To supplement the steps above, \textit{Listing 2} shows the implementation. 
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 1 Part 2: Frequency Domain and Spectral Analysis},label={lst:freqdomain_code}]
+% Compute the FFT of the signal
+X = fft(x);
+% The FFT output is complex - compute the magnitude
+X_magnitude = abs(X);
+% Normalise by dividing by N to get correct amplitude scaling
+X_normalised = X_magnitude / N;
+% Create single-sided spectrum (positive frequencies only)
+% We need bins from 0 (DC) to N/2 (Nyquist)
+num_bins_single_sided = floor(N/2) + 1;
+X_single_sided = X_normalised(1:num_bins_single_sided);
+% Double the amplitude for all bins except DC and Nyquist
+% This accounts for the energy in the negative frequencies we discarded
+X_single_sided(2:end-1) = 2 * X_single_sided(2:end-1);
+% Create the frequency vector for the single-sided spectrum
+% Each bin k corresponds to frequency f = k * fs / N
+f = (0:num_bins_single_sided-1) * fs / N;
+% Convert to decibels for logarithmic scaling
+% We add eps (smallest positive number) to avoid log(0) = -infinity
+X_dB = 20 * log10(X_single_sided + eps);
+% Create figure for the frequency spectrum (removed for readability)
+% Plot with logarithmic (dB) scaling (removed for readability)
+% Display frequency domain statistics (removed for readability)
+\end{lstlisting}
+
+% CHANGE: Condensed explanation
+Using the \texttt{fft()} function, output $X$ is a complex vector of length $N$. Each element $X[k]$ contains both magnitude and phase information about the frequency component at bin $k$.
+
+% CHANGE: Condensed - removed "The magnitude has been calculated and then normalised for ease of understanding and stops spectral peaks from appearing"
+The magnitude is normalised by $N$ to obtain correct amplitude scaling.
+
+% CHANGE: Tightened explanation of single-sided spectrum
+The single-sided spectrum extraction keeps bins from DC to Nyquist, then doubles non-DC/non-Nyquist amplitudes to account for the discarded negative frequencies. For real signals, negative frequencies are mirror images of positive frequencies, so doubling recovers the correct total amplitude.
+
+\textbf{Results and Discussion}
+
+The plots are discussed first, followed by the terminal output. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T1Part1FrequencyDomSig.png}
+    \caption{Frequency domain signal without scaling}
+    \label{fig:T1FreqDomain}
+\end{figure}
+
+% CHANGE: Condensed and added insight about WHY linear plot is insufficient
+In the linear amplitude plot (\textbf{Figure~\ref{fig:T1FreqDomain}}), strong signal components dominate, with approximate values $f_{min} = 15.6$~kHz, $f_{max} = 16.4$~kHz and $f_c = 16$~kHz visible. However, the noise floor is compressed to near-zero, making it impossible to assess noise characteristics or determine appropriate stopband attenuation—both critical for filter design.
+
+% CHANGE: Removed "This might seem very useful at first, but it is important that both the signal and noise components can be represented so that precise filter design is possible" - redundant with above
+
+% CHANGE: Added insight about bandwidth extension requirement
+Due to the nature of the encoded message (letters), the bandwidth must be extended to $f_c \pm B$ where $B = 4$ kHz. This wider bandwidth ensures that all frequency components of each character are captured, as different letters have different spectral signatures that may extend beyond the visible carrier sidebands.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T1Part1dBScaledFreqDomSig.png}
+    \caption{Applying dB scaling to the frequency plot}
+    \label{fig:T1dBScale}
+\end{figure}
+
+% CHANGE: Added insight about WHY 60dB dynamic range matters
+\textbf{Figure~\ref{fig:T1dBScale}} shows the dB-scaled spectrum, where both signal and noise are visible. The logarithmic scaling compresses the dynamic range: a signal 1000$\times$ stronger than the noise (60 dB difference) appears on the same plot with both components clearly distinguishable. This 60+ dB dynamic range visibility is essential for specifying the $>50$ dB stopband attenuation required in Task 2.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T1Part1BandBoundary.png}
+    \caption{Bandwidth identification in the frequency domain}
+    \label{fig:T1BandId}
+\end{figure}
+
+From the plot above \textbf{Figure~\ref{fig:T1BandId}}, the green highlighted area shows the required bandwidth extension. The final values used going forward are $f_{min} = 12$ kHz, $f_{max} = 20$ kHz and $f_c = 16$ kHz.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.4]{T1P1FreqDomTermOutput.png}
+    \caption{Frequency Domain Analysis}
+    \label{fig:FdomAnalysis}
+\end{figure}
+
+The spectrogram below shows strong energy bands around $15\-17 kHz$, with three distinct bright horizontal regions indicating short-duration high-frequency tonal bursts, representing the three characters. 
+
+The background displays a high wideband noise floor at approximately $60$ to $80 dB/Hz$, suggesting environmental/background noise (in this case it is white noise). There is little to no low-frequency structure below 5 kHz, confirming the absence of typical speech features. 
+
+Three clear time regions of activity occur at approximately $0.55s$, $1.35s$, and $2.1s$, corresponding to the observed bursts.
+
+\textbf{Figure~\ref{fig:SpectroOutput}} shows the spectrogram clearly:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T1Spectrogram.png}
+    \caption{Spectrogram Output}
+    \label{fig:SpectroOutput}
+\end{figure}
+
+% CHANGE: Enhanced results - added dynamic range and filter design implications
+For filter design, the noise floor characteristics are critical \textbf{Figure~\ref{fig:AMsigbandfloor}}. The floor at $-65$ dB, compared to signal peaks near $-20$ dB, gives approximately 45 dB dynamic range. Since the required $>50$ dB stopband attenuation, the filter must attenuate noise to below this floor — achievable with the Hamming window design. The flat noise spectrum confirms AWGN, meaning no frequency-dependent noise shaping is needed.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T1Part1SigBandRegion.png}
+    \caption{AM signal band and floor characteristics}
+    \label{fig:AMsigbandfloor}
+\end{figure}
+
+Further terminal output prints out band verification (\textbf{Figure~\ref{fig:AMBID}}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.4]{T1P2AMBandID.png}
+    \caption{AM band identification}
+    \label{fig:AMBID}
+\end{figure}
+
+\subsubsection{Task 1 Windowing}
+
+\textbf{Procedure and Theory}
+
+Analysing a finite-length segment of a signal is equivalent to multiplying by a rectangular window, which causes spectral leakage through convolution with a sinc function in the frequency domain. To reduce this effect, alternative window functions with lower sidelobes may be applied.
+
+The Hamming window was selected as it provides approximately 53~dB sidelobe attenuation whilst maintaining reasonable frequency resolution ($3.3/N$ main-lobe width). This matches the stopband attenuation requirement for the bandpass filter in Task~2. The window is defined as:
+
+\begin{equation}
+w_{\text{Hamming}}[n]
+= 0.54 - 0.46 \cos\!\left(\frac{2\pi n}{N-1}\right),
+\qquad n = 0,1,\dots,N-1.
+\end{equation}
+
+Windowing reduces signal energy, so amplitude correction by the coherent gain ($CG \approx 0.54$ for Hamming) is required to restore correct spectral amplitudes.
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{T1Part1WindowVunWindowedFreqDom.png}
+    \caption{Comparison of windowed and unwindowed spectra}
+    \label{fig:WVUNW}
+\end{figure}
+
+Referring to \textbf{Figure~\ref{fig:WVUNW}}, the Hamming-windowed spectrum shows a marginally cleaner noise floor compared to the unwindowed (rectangular) spectrum. However, for this particular signal with its large sample count ($N = 244104$), the practical improvement was minimal since the frequency resolution was already sufficient to clearly identify the AM signal boundaries without significant leakage interference.
+
+\subsection{Task 2}
+
+This task focuses on bandpass filter design using the signal analysis results from Task 1.
+
+\subsubsection{Task 2 Filter Design}
+
+The task is to design a bandpass FIR filter with the following specifications:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+Parameter & Value \\ \hline
+Passband edges & $f_{\min},\ f_{\max}$ \\
+Stopband edges & $f_{\min} - 2\,\text{kHz},\ f_{\max} + 2\,\text{kHz}$ \\
+Max passband ripple & $0.1\,\text{dB}$ \\
+Stopband attenuation & $> 50\,\text{dB}$ \\
+\hline
+\end{tabular}
+\caption{Bandpass FIR filter specifications.}
+\end{table}
+
+The design uses the impulse response truncation (IRT) method, which relies on the Fourier transform relationship between the frequency response \(H(\Omega)\) and impulse response \(h[n]\):
+
+\begin{equation}
+H(\Omega) = \sum_{n=-\infty}^{\infty} h[n]\,e^{-j\Omega n},
+\qquad
+h[n] = \frac{1}{2\pi}\int_{-\pi}^{\pi} H(\Omega) e^{j\Omega n}\,d\Omega.
+\end{equation}
+
+For an ideal lowpass filter with normalised cutoff frequency \(F_c = f_c/f_s\), the impulse response is
+
+\begin{equation}
+h_D[n] = 2F_c \frac{\sin(2\pi F_c n)}{2\pi F_c n} = 2F_c\,\text{sinc}(2F_c n),  
+\end{equation}
+
+with
+\[
+h_D[0] = 2F_c.
+\]
+
+A bandpass filter is obtained by subtracting two ideal lowpass filters with cutoff frequencies \(F_2 > F_1\):
+
+\[
+h_{BP}[n]
+= 2F_2\,\frac{\sin(2\pi F_2 n)}{2\pi F_2 n}
+ - 2F_1\,\frac{\sin(2\pi F_1 n)}{2\pi F_1 n}.
+\]
+
+At \(n=0\),
+
+\[
+h_{BP}[0] = 2(F_2 - F_1).
+\]
+
+The normalised frequencies are defined as
+\[
+F = \frac{f}{f_s},
+\qquad
+F_1 = \frac{f_{\min}}{f_s},
+\qquad
+F_2 = \frac{f_{\max}}{f_s}.
+\]
+
+For transition bands centred on the stopband edges:
+
+\[
+F_{c1} = \frac{f_{\min}-1000}{f_s},
+\qquad
+F_{c2} = \frac{f_{\max}+1000}{f_s}.
+\]
+
+The ideal impulse response is infinite, so it is truncated to \(N = 2M+1\) samples:
+
+\begin{equation}
+h[n] = h_D[n-M], \qquad n = 0,1,\dots,2M.  
+\end{equation}
+
+This centres the impulse response and produces a causal filter.
+
+Different window functions give different transition widths and stopband attenuations:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{Window} & \textbf{Transition Width} & \textbf{Stopband Attenuation} \\ \hline
+Rectangular & $0.9/N$ & $21\,\text{dB}$ \\
+Hanning     & $3.1/N$ & $44\,\text{dB}$ \\
+Hamming     & $3.3/N$ & $53\,\text{dB}$ \\
+Blackman    & $5.5/N$ & $74\,\text{dB}$ \\
+\hline
+\end{tabular}
+\caption{Comparison of window functions for FIR filter design.}
+\end{table}
+
+% CHANGE: Added insight about WHY Hamming is preferred over Blackman despite both meeting spec
+Because the required stopband attenuation is greater than $50$ dB, both Hamming and Blackman windows satisfy the requirement. The Hamming window is preferred because its narrower transition band ($3.3/N$ vs $5.5/N$) provides sharper frequency selectivity, minimising spectral smearing at the passband edges while still meeting the attenuation specification with margin.
+
+For the Hamming window, the transition width is approximately:
+
+\[
+\Delta F = \frac{3.3}{N}.
+\]
+
+The transition band is 2\,kHz wide, so
+
+\[
+\Delta F = \frac{2000}{96000} = 0.02083,
+\qquad
+N = \frac{3.3}{0.02083} \approx 158.4.
+\]
+
+% CHANGE: Added insight about WHY odd filter length is required
+Choosing the nearest odd length gives \(N = 159\) and \(M = 79\). An odd filter length is required to ensure exact linear phase with integer group delay — even-length filters have fractional sample delays that complicate time-domain alignment.
+
+The final filter coefficients are computed by applying the chosen window:
+
+\[
+h[n] = w[n]\,h_D[n-M].
+\]
+
+The Hamming window is defined as
+
+\[
+w[n] = 0.54 - 0.46 \cos\!\left(\frac{2\pi n}{N-1}\right),
+\qquad n = 0,1,\dots,N-1.
+\]
+
+\textbf{Code Explanation}
+\begin{lstlisting}
+%% Define filter specifications
+fc = 16000;              % Carrier frequency in Hz (from Task 1)
+fmin = fc - 4000;        % Lower passband edge (Hz)
+fmax = fc + 4000;        % Upper passband edge (Hz)
+% Stopband edges (as specified)
+fstop_lower = fmin - 2000;   % Lower stopband edge (Hz)
+fstop_upper = fmax + 2000;   % Upper stopband edge (Hz)
+% Transition bandwidth
+transition_bandwidth = 2000;  % Hz
+% Cutoff frequencies are at the centre of the transition bands (normalised)
+Fc1 = (fmin - 1000) / fs;    % Lower cutoff (normalised)
+Fc2 = (fmax + 1000) / fs;    % Upper cutoff (normalised)
+% Calculate normalised transition width
+delta_F = transition_bandwidth / fs;
+% Display specifications for filter. (removed for readability)
+N_calculated = 3.3 / delta_F; % Hamming Window taps
+N = ceil(N_calculated);
+% Ensure N is odd for symmetric filter
+if mod(N, 2) == 0
+    N = N + 1;
+end
+M = (N - 1) / 2;  % Number of coefficients either side of centre
+% Printing out prior information 
+%% Design the ideal bandpass impulse response
+% h_BP[n] = 2*Fc2*sinc(2*Fc2*n) - 2*Fc1*sinc(2*Fc1*n)
+n_ideal = -M:M; % n ranges from -M to +M (centred at 0)
+h_ideal = zeros(1, N); % Calculate ideal impulse response for bandpass filter
+for i = 1:N
+    n = n_ideal(i);
+    if n == 0
+        % For n = 0: h[0] = 2*Fc2 - 2*Fc1
+        h_ideal(i) = 2*Fc2 - 2*Fc1;
+    else
+        % For n != 0: h[n] = 2*Fc2*sinc(2*Fc2*n) - 2*Fc1*sinc(2*Fc1*n)
+        % sinc(x) = sin(pi*x)/(pi*x), but here we use sin(2*pi*Fc*n)/(2*pi*Fc*n)
+        term1 = 2*Fc2 * sin(n * 2*pi*Fc2) / (n * 2*pi*Fc2);
+        term2 = 2*Fc1 * sin(n * 2*pi*Fc1) / (n * 2*pi*Fc1);
+        h_ideal(i) = term1 - term2;
+    end
+end
+% w[n] = 0.54 - 0.46*cos(2*pi*n/(N-1)) for n = 0, 1, ..., N-1 
+n_window = 0:N-1;
+hamming_win = 0.54 - 0.46 * cos(2 * pi * n_window / (N - 1));
+h_windowed = h_ideal .* hamming_win; % Apply window to ideal impulse response
+% Printing window output
+%% Plot the filter design process
+% Plot 1: Ideal impulse response (unwindowed) (1st subplot)
+% Plot 2: Hamming window (2nd subplot)
+% Plot 3: Windowed impulse response (final filter coefficients) (3rd subplot)
+h_bp = h_windowed;  % Final bandpass filter coefficients stored for later
+% Print output
+\end{lstlisting}
+
+% CHANGE: Condensed - removed "From the listing above, several implementations can be seen"
+The code first defines filter specifications derived from Task 1 analysis ($f_c$, $f_{min}$, $f_{max}$, stopband and cutoff frequencies). The ideal bandpass impulse response is computed using the sinc-subtraction method, then windowed with the Hamming function to produce the final coefficients.
+
+\textbf{Results and Discussion}\\
+The code outputs are shown in \textbf{Figures X and Y} for verification.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.315]{T2P1FilterReqTermOutput.png}
+    \caption{Filter requirements - terminal output}
+    \label{fig:FilterReqs}
+\end{figure}
+
+\textbf{Figure~\ref{fig:FilterReqs}} confirms that the calculated specifications meet the assignment requirements.
+
+In addition, looking at the magnitude response shows that the filter follows the requirements from above, with the output showing the correct response for the desired frequencies.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2FIRBandpassMagResponse.png}
+    \caption{Bandpass filter magnitude response}
+    \label{fig:enter-label}
+\end{figure}
+
+% CHANGE: Added insight about what the tap count implies
+The tap count of 159 coefficients, correct for the Hamming window design equation, represents the computational cost per output sample — each filtered sample requires 159 multiply-accumulate operations.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T1Part1TotalFIROutput.png}
+    \caption{Impulse response comparisons}
+    \label{fig:IRC}
+\end{figure}
+
+Total FIR output shown above in \textbf{Figure~\ref{fig:IRC}} shows the slightly cleaner impulse response after the Hamming window has been applied
+
+\subsubsection{Task 2 - Phase and Filter Verification}
+
+\textbf{Procedure and Theory}\\
+Before applying the filter to the AM signal, it is imperative to verify that it satisfies the required specifications by computing its frequency response across the full frequency range.
+
+The frequency response \(H(f)\) of an FIR filter is given by the Fourier transform of its impulse response \(h[n]\):
+
+\begin{equation}
+H(f) = \sum_{n=0}^{N-1} h[n]\; e^{-j 2\pi f n / f_s}.  
+\end{equation}
+
+In practice, the response is obtained using the FFT, typically with zero-padding to improve frequency resolution and produce a smoother spectral estimate.
+
+\textbf{Table 3} shows the requirements that need to be verified. 
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Requirement} \\ \hline
+Passband ($f_{\min}$ to $f_{\max}$) 
+& Gain $\approx 0$ dB, ripple $< 0.1$ dB \\ \hline
+Stopband ($< f_{\min} - 2\,\text{kHz}$ and $> f_{\max} + 2\,\text{kHz}$)
+& Attenuation $> 50$ dB \\ \hline
+Transition bands 
+& Smooth rolloff within 2 kHz \\ \hline
+\end{tabular}
+\caption{Filter specification verification criteria}
+\end{table}
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 2 Part 2: Impulse Response Verification},label={lst:IRV_code}]
+% Compute frequency response using zero-padded FFT
+N_fft = 8192;  % Zero-pad for smooth frequency response plot
+H = fft(h_bp, N_fft);
+H_magnitude = abs(H);
+H_dB = 20 * log10(H_magnitude + eps);
+H_phase = angle(H);
+% Unwrap phase for clearer visualisation
+H_phase_unwrapped = unwrap(H_phase);
+% Create frequency vector (single-sided)
+f_response = (0:N_fft/2) * fs / N_fft;
+H_dB_single = H_dB(1:N_fft/2+1);
+H_phase_single = H_phase_unwrapped(1:N_fft/2+1);
+%% Plot frequency response - Magnitude
+% Full spectrum view (removed)
+% Add specification lines (removed)
+%% Plot phase response (removed)
+%% Measure actual filter performance (removed)
+% Find indices for passband and stopband regions
+passband_indices = find(f_response >= fmin & f_response <= fmax);
+stopband_lower_indices = find(f_response <= fstop_lower);
+stopband_upper_indices = find(f_response >= fstop_upper & f_response <= fs/2);
+% Measure passband ripple
+passband_gain_dB = H_dB_single(passband_indices);
+passband_max = max(passband_gain_dB);
+passband_min = min(passband_gain_dB);
+passband_ripple = passband_max - passband_min;
+% Measure stopband attenuation
+stopband_lower_max = max(H_dB_single(stopband_lower_indices));
+stopband_upper_max = max(H_dB_single(stopband_upper_indices));
+stopband_max = max(stopband_lower_max, stopband_upper_max);
+% Calculate group delay (should be constant = M for linear phase)
+group_delay_samples = M;
+group_delay_ms = M / fs * 1000;
+%% Display verification results
+%% Overall verification summary
+\end{lstlisting}
+
+\textbf{Code Explanation}
+
+% CHANGE: Condensed explanation
+Zero-padding the impulse response to 8192 points interpolates the frequency response for smoother visualisation without changing the filter's actual characteristics. The FFT bins are mapped to physical frequencies for the single-sided spectrum.
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2FilterLengthCalcTerm.png}
+    \caption{Filter calculations (windowed and ideal)}
+    \label{fig:FilterCalcs}
+\end{figure}
+
+% CHANGE: Enhanced results - added margin analysis and design headroom discussion
+From \textbf{Figure~\ref{fig:FilterCalcs}}, the filter exceeds all requirements with comfortable margins: passband ripple of $0.0376$ dB gives $2.7\times$ margin on the $0.1$ dB limit, and stopband attenuation of $53.64$ dB provides $3.64$ dB headroom above the $50$ dB requirement. This headroom is important — real-world signals may have noise peaks exceeding the average floor, so extra attenuation provides robustness.
+
+The phase response is linear with group delay of 79 samples ($0.8229$ ms). Linear phase ensures all passband frequencies experience identical delay, preserving the AM envelope shape. For the 2.54 s signal, this 0.8 ms delay is negligible ($<0.04\%$ of duration).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2FIRPhaseResponse.png}
+    \caption{Linear phase response plot}
+    \label{fig:LinPhaseR}
+\end{figure}
+
+From \textbf{Figure~\ref{fig:LinPhaseR}}, the linear phase behaviour is clearly visible within the passband ($f_{min}$ to $f_{max}$), with the linear relationship breaking down outside the passband where the signal is attenuated anyway.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2SpecCompare.png}
+    \caption{Pre\- and post\- filtering analysis}
+    \label{fig:PrePostFilter}
+\end{figure}
+
+In \textbf{Figure~\ref{fig:PrePostFilter}}, the message content within $f_c \pm B$ is preserved while out-of-band noise is suppressed, visually confirming the filter's effectiveness.
+
+\subsubsection{Task 2 Custom Convolution Method}
+
+\textbf{Procedure and Theory}\\
+The filtering stage must be implemented using custom convolution code rather than MATLAB's built-in \texttt{filter()} or \texttt{conv()}. This requires computing the FIR convolution directly.
+
+For an input signal \(x[n]\) and FIR coefficients \(h[n]\), the output is shown in \textit{Equation 12}:
+
+\begin{equation}
+y[n] = \sum_{k=0}^{N-1} h[k]\, x[n-k],  
+\end{equation}
+
+where \(N\) is the number of filter taps. Each output sample is obtained by taking the most recent \(N\) input samples \(x[n], x[n-1], \dots, x[n-(N-1)]\), multiplying them by the corresponding coefficients \(h[0], h[1], \dots, h[N-1]\), and summing the products.
+
+At the beginning of the signal, where past samples do not exist, zero-padding is used so that \(x[n] = 0\) for \(n < 0\). This ensures that the output length matches the input length.
+
+\textbf{Code and Explanation}
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 2 Part 3: Custom Convolution Operation},label={lst:CC_code}]
+function y = custom_conv(x, h)
+    is_column = iscolumn(x);      % Store original orientation
+    x = x(:)';     % Store original orientation
+    h = h(:)';
+    % Get lengths
+    L = length(x);  % Input signal length
+    N = length(h);  % Filter length
+    % Zero-pad the input signal (N-1 zeros at beginning)
+    x_padded = [zeros(1, N-1), x];
+    % Preallocate output
+    y = zeros(1, L);
+    % Perform convolution
+    for n = 1:L
+        accumulator = 0;
+        for k = 1:N
+            x_index = n + N - k;
+            accumulator = accumulator + h(k) * x_padded(x_index);
+        end
+        y(n) = accumulator;
+    end
+    % Restore original orientation
+    if is_column
+        y = y(:); % Add StackOverflow post for convolution code
+    end
+end
+\end{lstlisting}
+
+% CHANGE: Condensed explanation
+The outer loop produces each output sample; the inner loop computes the weighted sum of filter coefficients multiplied by corresponding input samples. The index calculation $n + N - k$ accounts for the zero-padding offset.
+
+% CHANGE: Added insight about WHY the custom implementation is slower
+This implementation has $O(LN)$ complexity due to the nested loops, compared to MATLAB's \texttt{conv()} which uses FFT-based overlap-add methods achieving $O(L \log L)$ for long signals. The custom version is functionally equivalent but significantly slower, but acceptable for this implementation but impractical for real-time processing.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2CustomConvVerifyTerm.png}
+    \caption{Custom convolution speed tests}
+    \label{fig:enter-label}
+\end{figure}
+
+\subsubsection{Task 2 Applying The Filter to an AM Signal}
+
+\textbf{Procedure and Theory}\\
+With the custom convolution function and the FIR bandpass filter designed, the filter is applied to the AM signal to suppress out-of-band noise.
+
+The bandpass filter should pass AM content within $f_{min}$ to $f_{max}$, attenuate out-of-band components by $>50$ dB, and preserve signal structure for demodulation. The filter introduces a delay of $M$ samples (half the filter length), which does not affect batch processing.
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 2 Part 3: Signal Filter Application},label={lst:SFA_code}]
+% Apply the bandpass filter using our custom convolution function
+tic;
+x_filtered = custom_conv(x, h_bp);
+filter_time = toc;
+%% Time domain comparison (removed from listing)
+% Original signal and filtered signal plots removed for clarity.
+%% Frequency domain comparison
+% Compute spectrum of filtered signal using Hamming window
+x_filtered_windowed = x_filtered .* hamming_window;
+X_filtered = fft(x_filtered_windowed);
+X_filtered_magnitude = abs(X_filtered);
+X_filtered_normalised = X_filtered_magnitude / N / CG_hamming;
+X_filtered_single = X_filtered_normalised(1:num_bins_single_sided);
+X_filtered_single(2:end-1) = 2 * X_filtered_single(2:end-1);
+X_filtered_dB = 20 * log10(X_filtered_single + eps);
+% Original spectrum (plot removed)
+% Filtered spectrum (removed plot)
+%% Calculate noise reduction statistics
+% Measure power in passband and stopband before and after filtering
+% Passband power (should be similar before and after)
+passband_indices_signal = find(f >= fmin & f <= fmax);
+passband_power_before = mean(X_hamming_single(passband_indices_signal).^2);
+passband_power_after = mean(X_filtered_single(passband_indices_signal).^2);
+% Stopband power (should be much lower after filtering)
+stopband_indices_lower = find(f <= fstop_lower);
+stopband_indices_upper = find(f >= fstop_upper & f <= fs/2);
+stopband_indices_signal = [stopband_indices_lower, stopband_indices_upper];
+stopband_power_before = mean(X_hamming_single(stopband_indices_signal).^2);
+stopband_power_after = mean(X_filtered_single(stopband_indices_signal).^2);
+% Calculate noise reduction in dB
+noise_reduction_dB = 10 * log10(stopband_power_before / stopband_power_after);
+% Calculate signal-to-noise improvement
+snr_before = 10 * log10(passband_power_before / stopband_power_before);
+snr_after = 10 * log10(passband_power_after / stopband_power_after);
+snr_improvement = snr_after - snr_before;
+% Terminal output removed for clarity
+%% Amplitude statistics comparison (removed from listing to be concise)
+\end{lstlisting}
+
+\newpage
+
+\textbf{Code Explanation}\\
+The custom convolution is applied, followed by Hamming-windowed FFT analysis. Power in passband and stopband regions is compared before/after filtering to quantify effectiveness.
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2OGSignal.png}
+    \caption{Original signal in the time domain}
+    \label{fig:OGsigTD}
+\end{figure}
+
+% CHANGE: Enhanced results - added envelope visibility and time-domain interpretation
+\textbf{Figure~\ref{fig:OGsigTD}} shows the original signal where three peaks are barely distinguishable through the noise.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2FIRAfterBP.png}
+    \caption{Signal after bandpass filtering (time domain)}
+    \label{fig:BPFiltSig}
+\end{figure}
+
+\textbf{Figure~\ref{fig:BPFiltSig}} shows the filtered signal — the AM envelope is now clearly visible, with each character's amplitude modulation distinct. The noise floor dropped from $\sim$0.5 to $\sim$0.23 (54\% reduction), and crucially, the three peaks are now cleanly separable.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T2FilterOutputVerifyTerm.png}
+    \caption{Filter output verification (terminal)}
+    \label{fig:FiltVeriTerm}
+\end{figure}
+
+% CHANGE: Enhanced results - added quantitative interpretation
+The terminal output (\textbf{Figure~\ref{fig:FiltVeriTerm}}) confirms:
+\begin{itemize}
+  \item Stopband attenuation: $63.73$ dB (exceeds $50$ dB spec by $13.73$ dB)
+  \item Passband loss: only $0.67$ dB (93\% signal power retained)
+  \item SNR: $4.63 \rightarrow 69.02$ dB ($+64.39$ dB improvement)
+\end{itemize}
+
+The 69 dB post-filter SNR means signal power exceeds noise by a factor of $\sim$8 million,more than sufficient for carrier recovery, where even 20 dB would be adequate.
+
+\subsection{Task 3}
+This task involves applying the square law, identifying and computing the carrier frequency, generating the local carrier signal, and mixing to produce the baseband output.
+
+\subsubsection{Task 3 Carrier Recovery}
+
+\textbf{Procedure}\\
+The carrier frequency \(f_c\) is present within the AM signal but may not be directly observable, especially in DSB-SC signals where the carrier is suppressed. To recover it, the square-law operation has been applied.
+
+Squaring exploits the identity from \textit{Equation 13}:
+
+\begin{equation}
+\cos^2(\omega_c t) = \frac{1}{2}\left(1 + \cos(2\omega_c t)\right),  
+\end{equation}
+
+so that for a DSB-SC signal \(s(t) = m(t)\cos(\omega_c t)\),
+
+\begin{equation}
+s^2(t) = m^2(t)\cos^2(\omega_c t)
+       = \frac{m^2(t)}{2}\left(1 + \cos(2\omega_c t)\right).
+\end{equation}
+
+This generates a strong spectral component at \(2f_c\), even when the original carrier at \(f_c\) is suppressed.
+
+% CHANGE: Added insight about WHY squaring doubles the message bandwidth
+The message $m(t)$ has bandwidth $B = 4$~kHz, so $m^2(t)$ has bandwidth $2B = 8$~kHz. The doubling occurs as squaring in the time domain $\rightarrow$ convolution in the frequency domain, so convolving a spectrum with itself doubles width. The component at $2f_c$ appears with sidebands extending $\pm 8$~kHz. For a carrier around $16kHz$, this places $2f_c \approx 32$~kHz, within the Nyquist limit of $48kHz$.
+
+From the spectrum of the squared signal, the carrier is recovered by identifying the peak near \(2f_c\) and computing
+\[
+f_c = \frac{f_{\text{peak}}}{2}.
+\]
+
+% CHANGE: Added insight about WHY the 1 kHz multiple check is useful
+The carrier frequency is specified to be an integer multiple of \(1\,\text{kHz}\), which provides a useful sanity check — if the measured peak does not round to a clean kHz value, it likely indicates a spurious peak rather than the true carrier component.
+
+\textbf{Code and Explanation}
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 3 Part 1: Carrier Recovery},label={lst:CarryRecov_code}]
+x_squared = x_filtered .^ 2;
+%% Compute spectrum of squared signal
+x_squared_windowed = x_squared .* hamming_window;
+% Compute FFT
+X_squared = fft(x_squared_windowed);
+X_squared_magnitude = abs(X_squared);
+X_squared_normalised = X_squared_magnitude / N / CG_hamming;
+% Single-sided spectrum
+X_squared_single = X_squared_normalised(1:num_bins_single_sided);
+X_squared_single(2:end-1) = 2 * X_squared_single(2:end-1);
+X_squared_dB = 20 * log10(X_squared_single + eps);
+%% Plot squared signal spectrum (removed for ease)
+xline(2*fc_rounded/1000, 'r--', 'LineWidth', 2);
+% Define search range around 2fc
+search_range_low = 2*fc_rounded - 5000;   % Hz
+search_range_high = 2*fc_rounded + 5000;  % Hz
+% Find indices of search region
+search_indices = find(f >= search_range_low & f <= search_range_high);
+% Extract the region to search for peaks
+X_search = X_squared_single(search_indices);
+f_search = f(search_indices);
+% Use findpeaks
+[peaks, locs] = findpeaks(X_search, f_search);
+% Get the highest peak
+[peak_value, max_idx] = max(peaks);
+f_2fc_measured = locs(max_idx);
+% Calculate measured carrier frequency
+fc_measured = f_2fc_measured / 2;
+fc_final = round(fc_measured / 1000) * 1000;
+\end{lstlisting}
+
+Element-wise squaring creates frequency components at DC, $2f_c$, and various intermodulation products. The \texttt{findpeaks()} function locates the dominant peak in the $2f_c$ region, from which the carrier frequency is calculated by division: $(32\text{~kHz}) / 2 = 16\text{~kHz}$.
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T3ZoomedSquareSignal.png}
+    \caption{After signal squaring in the frequency domain}
+    \label{fig:BVASigSquare}
+\end{figure}
+
+% CHANGE: Enhanced results - added peak prominence analysis and error quantification
+\textbf{Figure~\ref{fig:BVASigSquare}} shows the squared signal spectrum with a dominant peak at 32~kHz ($2f_c$). The peak prominence (height above surrounding noise) exceeds 30~dB, making detection unambiguous. The measured frequency of 32.000~kHz yields $f_c = 16.000$~kHz exactly—rounding to the nearest kHz confirms this matches the expected integer-kHz carrier specification with zero error.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.4]{T3CarrierRecovVerifyTerm.png}
+    \caption{Carrier Recovery Verification}
+    \label{fig:CarryRecovTerm}
+\end{figure}
+
+Carrier recovery identification shown above, in \textbf{Figure~\ref{fig:CarryRecovTerm}}
+
+Accurate carrier recovery is critical: a 1\% frequency error ($\approx 160Hz$) would shift the baseband spectrum, potentially attenuating message frequencies near the 4 kHz lowpass cutoff. The exact match here ensures optimal demodulation.
+
+\subsubsection{Task 3 Carrier Generation and Mixing}
+With the carrier frequency \(f_c\) determined, a local carrier is generated and multiplied with the filtered AM signal as part of coherent demodulation.
+
+For a DSB-SC signal \(s(t) = m(t)\cos(\omega_c t)\), mixing with a local carrier \(\cos(\omega_c t + \phi)\) gives
+\begin{equation}
+s(t)\cos(\omega_c t + \phi)
+= m(t)\cos(\omega_c t)\cos(\omega_c t + \phi).
+\end{equation}
+Using the identity \(\cos A \cos B = \tfrac{1}{2}[\cos(A-B) + \cos(A+B)]\),
+\[
+s(t)\cos(\omega_c t + \phi)
+= \frac{m(t)}{2}\left[\cos(\phi) + \cos(2\omega_c t + \phi)\right].
+\]
+
+This produces a baseband term \(\tfrac{1}{2}m(t)\cos(\phi)\) and a high-frequency term at \(2f_c\).
+
+The phase \(\phi\) determines the amplitude and polarity of the recovered signal:
+\[
+\phi = 0 \Rightarrow \cos(\phi)=1,\ \text{maximum amplitude},
+\]
+\[
+\phi = \frac{\pi}{2} \Rightarrow \cos(\phi)=0,\ \text{no output},
+\]
+\[
+\phi = \pi \Rightarrow \cos(\phi)=-1,\ \text{inverted output}.
+\]
+For the present stage, \(\phi = 0\) is used.
+
+In the frequency domain, mixing shifts the spectrum such that the AM content around \(f_c\) appears both at \(0\) Hz (baseband) and at \(2f_c\). The baseband component contains the message, while the component at \(2f_c\) will be removed by the lowpass filter in the next stage.
+
+\textbf{Code and Explanation}
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 3 Part 2: Carrier Gen and Mixing},label={lst:CarryGenMix_code}]
+phi = 0;
+% Generate local carrier signal
+carrier = cos(2 * pi * fc_final * t + phi);
+% Carrier frequency, phase and signal length outputs (removed)
+x_mixed = x_filtered .* carrier; % mixing
+%% Time domain plots (removed for clarity), frequency analysis
+% Apply Hamming window
+x_mixed_windowed = x_mixed .* hamming_window;
+% Compute FFT
+X_mixed = fft(x_mixed_windowed);
+X_mixed_magnitude = abs(X_mixed);
+X_mixed_normalised = X_mixed_magnitude / N / CG_hamming;
+% Single-sided spectrum
+X_mixed_single = X_mixed_normalised(1:num_bins_single_sided);
+X_mixed_single(2:end-1) = 2 * X_mixed_single(2:end-1);
+X_mixed_dB = 20 * log10(X_mixed_single + eps);
+%% Frequency domain plots (removed for clarity)
+% Find power in baseband region (0 to 4 kHz - message bandwidth)
+baseband_indices = find(f >= 0 & f <= 4000);
+baseband_power = mean(X_mixed_single(baseband_indices).^2);
+% Find power in 2fc region (2fc +- 4 kHz)
+double_fc_indices = find(f >= (2*fc_final - 4000) & f <= (2*fc_final + 4000));
+double_fc_power = mean(X_mixed_single(double_fc_indices).^2);
+% Find power in noise region (between baseband and 2fc)
+noise_region_low = 8000;  % Above baseband
+noise_region_high = 2*fc_final - 8000;  % Below 2fc component
+if noise_region_high > noise_region_low
+    noise_indices = find(f >= noise_region_low & f <= noise_region_high);
+    noise_power = mean(X_mixed_single(noise_indices).^2);
+else
+    noise_power = 0;
+end
+% Carrier signal analysis methods (prints terminal outputs, removed)
+\end{lstlisting}
+
+% CHANGE: Condensed the numbered list into prose
+The code generates a cosine wave at the recovered carrier frequency with initial phase $\phi = 0$ (to be optimised in Task~5). Element-wise multiplication performs the mixing operation, followed by Hamming-windowed FFT analysis to quantify power in the baseband (0--4~kHz) and $2f_c$ regions.
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.18]{T3BefAftSigMix.png}
+    \caption{Time domain signals before and after mixing}
+    \label{fig:TDBVAMixing}
+\end{figure}
+
+% CHANGE: Enhanced results - added time-domain interpretation
+\textbf{Figure~\ref{fig:TDBVAMixing}} shows the mixing process: the filtered AM signal (rapidly oscillating carrier), the local carrier (pure 16~kHz cosine), and the mixed output. The mixed signal shows a lower-frequency envelope—this is the baseband message emerging. The three character peaks are now visible as amplitude variations rather than carrier bursts.
+
+% CHANGE: Enhanced frequency domain discussion - added spectral separation quantification
+In the frequency domain, mixing creates two distinct spectral regions separated by approximately $24~kHz$ (baseband at $0--4~kHz$, sum-frequency at $28--36~kHz$). This wide separation ($6\times$ the message bandwidth) makes lowpass filtering straightforward—even a gentle rolloff will adequately suppress the $2f_c$ component, shown in \textbf{Figure~\ref{fig:FDBVAMixing}}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T3SpectrumBeforeAndAfter.png}
+    \caption{Frequency domain signals before and after mixing}
+    \label{fig:FDBVAMixing}
+\end{figure}
+
+Results of the mixing operation and their verifcation can be seen below (\textbf{Figure~\ref{fig:CarryGenMixTerm}})
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T3CarrierGenerationMixTerm.png}
+    \caption{Terminal output showing the results of carrier generation and mixing}
+    \label{fig:CarryGenMixTerm}
+\end{figure}
+
+The process is sensitive to phase: baseband amplitude scales with $\cos(\phi)$, so $\phi = \pi/2$ produces zero output. With $\phi = 0$, it achieves maximum amplitude (for now), though Task 5 will optimise this.
+
+\subsection{Task 4 IIR Filter Design and Verification}
+
+% CHANGE: Condensed intro - removed fragmented sentence
+This task implements a 4th order Butterworth IIR lowpass filter with 4 kHz cutoff to remove the $2f_c$ component from the mixed signal (Task 3), completing the demodulation chain.
+
+\subsubsection{Task 4 Part 1, Designing IIR Filters}
+
+\textbf{Procedure and Theory}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Value} \\ \hline
+Order & 4 \\ \hline
+Cutoff frequency & 4\,kHz \\ \hline
+Type & Butterworth \\ \hline
+\end{tabular}
+\caption{IIR lowpass filter design parameters}
+\end{table}
+
+% CHANGE: Added insight about WHY IIR is chosen over FIR for this stage
+IIR filters provide sharp cutoff characteristics with far fewer coefficients than FIR filters. A 4th-order Butterworth lowpass filter offers a good balance of monotonic passband behaviour (no ripple to distort the message), reasonable stopband attenuation, and computational efficiency. Where the FIR bandpass filter required 159 taps, this IIR filter achieves comparable selectivity with only 9 coefficients (5 numerator, 5 denominator).
+
+A Butterworth filter is characterised by a maximally flat passband, monotonic magnitude response, \(-3\)\,dB attenuation at the cutoff frequency, and a rolloff rate of \(20n\)\,dB/decade for order \(n\). For a 4th-order design, the rolloff is \(80\)\,dB/decade.
+
+Digital IIR filters are commonly designed by starting from an analogue prototype and applying the bilinear transform, which maps the \(s\)-plane to the \(z\)-plane:
+
+\begin{equation}
+s = \frac{2}{T_s}\,\frac{1 - z^{-1}}{1 + z^{-1}}.  
+\end{equation}
+
+Because the bilinear transform introduces frequency warping, pre-warping is used to preserve the desired cutoff frequency:
+
+\begin{equation}
+\omega_{\text{analog}} = \frac{2}{T_s}
+\tan\!\left(\frac{\omega_{\text{digital}} T_s}{2}\right).  
+\end{equation}
+
+For a cutoff frequency of \(4\)\,kHz and sampling rate \(f_s = 96\)\,kHz:
+
+\[
+\Omega_c = 2 f_s 
+\tan\!\left(\frac{\pi f_c}{f_s}\right)
+= 2 \cdot 96000 
+\tan\!\left(\frac{\pi \cdot 4000}{96000}\right).
+\]
+
+The resulting IIR filter has transfer function:
+
+\[
+H(z) =
+\frac{
+b_0 + b_1 z^{-1} + b_2 z^{-2} + \dots + b_M z^{-M}
+}{
+1 + a_1 z^{-1} + a_2 z^{-2} + \dots + a_N z^{-N}
+},
+\]
+
+with corresponding difference equation:
+
+\[
+y[n]
+= b_0 x[n] + b_1 x[n-1] + \dots + b_M x[n-M]
+  - a_1 y[n-1] - a_2 y[n-2] - \dots - a_N y[n-N].
+\]
+
+This highlights the recursive nature of IIR filters: each output sample depends on both past inputs and past outputs.
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 4 part 1: IIR Lowpass Filter Construction},label={lst:_code}]
+%% Task 4: IIR Lowpass Filter Design
+% Filter specifications
+filter_order = 4;
+fc_lowpass = 4000;  % Cutoff frequency in Hz
+% Uses normalised frequency where 1 = Nyquist frequency (fs/2)
+Wn = fc_lowpass / (fs/2);
+% Print method for showing specs has been removed.
+%% Design the Butterworth filter using bilinear transform
+% It returns coefficients for the transfer function H(z) = B(z)/A(z)
+[b_iir, a_iir] = butter(filter_order, Wn, 'low');
+% Method for printing coefficients has been removed.
+%% Verify coefficient properties (printing removed)
+%% Display the transfer function (printing method removed)
+%% Plot filter coefficients
+% Plotting logic for coefficients has been removed
+\end{lstlisting}
+
+% CHANGE: Condensed explanation
+In MATLAB, the \texttt{butter()} function requires the cutoff frequency normalised by the Nyquist frequency: $W_n = 4000/48000 \approx 0.0833$. The function returns numerator ($b$) and denominator ($a$) coefficients for the transfer function, with DC gain $= \sum b / \sum a = 1$ (0 dB), confirming the filter passes DC without attenuation.
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T4FilterSpecVerifyTerm.png}
+    \caption{Terminal output showing filter coefficients}
+    \label{fig:FilterCoefVerify}
+\end{figure}
+
+% CHANGE: Removed the lengthy coefficient listings (lines 1253-1273) - figure already shows them
+From \textbf{Figure~\ref{fig:FilterCoefVerify}}, the numerator coefficients are all positive and symmetric, while the denominator coefficients alternate in sign — both characteristic of Butterworth filters. The coefficient values are shown in the terminal output; note that $a[0] = 1$ (normalised form) and the DC gain equals 1.0.
+
+A 4th order filter has 5 numerator coefficients, 5 denominator coefficients, and 4 poles and 4 zeros in the z-plane \textbf{Figure~\ref{fig:VisualNumDenom}}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.35]{T4NumDenomCoefficients.png}
+    \caption{Visual plots showing the numerator and denominator coefficients of the filter}
+    \label{fig:VisualNumDenom}
+\end{figure}
+
+\subsubsection{Task 4 Part 2, IIR Frequency Response Verification}
+
+\textbf{Procedure and Theory}\\
+This part computes and verifies the frequency response of the IIR lowpass filter against the Butterworth specifications:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Requirement} \\ \hline
+Cutoff frequency (-3 dB point) & 4\,kHz \\ \hline
+Passband (0 to 4 kHz) & Monotonically flat \\ \hline
+Rolloff rate & 80\,dB/decade (4th order $\times$ 20\,dB/decade) \\ \hline
+\end{tabular}
+\caption{Butterworth lowpass filter design requirements}
+\end{table}
+
+The frequency response of an IIR filter is given by \textit{Equation 18}:
+
+\begin{equation}
+H(e^{j\omega}) =
+\frac{\displaystyle \sum_{k=0}^{M} b_k\, e^{-j\omega k}}
+     {\displaystyle \sum_{k=0}^{N} a_k\, e^{-j\omega k}}.
+\end{equation}
+
+In practice, this is evaluated by taking the FFT of the zero-padded numerator and denominator coefficient sequences and computing their ratio.
+
+A Butterworth filter has: $-3$ dB at cutoff, maximally flat passband, monotonic stopband rolloff, and approximately linear phase (though IIR filters inherently have some phase nonlinearity).
+
+\textbf{Code and Explanation}
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 4 part 1: IIR Lowpass Filter Construction},label={lst:_code}]
+%% Sub-task 4.2: IIR Frequency Response Verification
+% Compute frequency response using freqz
+N_freq = 8192;  % Number of frequency points
+[H_iir, f_iir] = freqz(b_iir, a_iir, N_freq, fs);
+% Magnitude response in dB
+H_iir_magnitude = abs(H_iir);
+H_iir_dB = 20 * log10(H_iir_magnitude + eps);
+% Phase response (plots removed)
+H_iir_phase = angle(H_iir);
+H_iir_phase_unwrapped = unwrap(H_iir_phase);
+%% Plot magnitude response
+%% Measure actual filter performance
+% Find -3 dB point
+idx_3dB = find(H_iir_dB <= -3, 1, 'first');
+if ~isempty(idx_3dB)
+    f_3dB_actual = f_iir(idx_3dB);
+else
+    f_3dB_actual = NaN;
+end
+% Measure gain at specific frequencies
+f_test_points = [100, 1000, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 20000];
+gain_at_test_points = zeros(size(f_test_points));
+for i = 1:length(f_test_points)
+    [~, idx] = min(abs(f_iir - f_test_points(i)));
+    gain_at_test_points(i) = H_iir_dB(idx);
+end
+% Measure rolloff rate (attenuation per octave after cutoff)
+% Compare attenuation at 8 kHz (1 octave above 4 kHz) and 16 kHz (2 octaves)
+[~, idx_8k] = min(abs(f_iir - 8000));
+[~, idx_16k] = min(abs(f_iir - 16000));
+atten_8k = H_iir_dB(idx_8k);
+atten_16k = H_iir_dB(idx_16k);
+rolloff_per_octave = atten_8k - atten_16k;
+%% Display verification results (removed)
+%% Verify Butterworth characteristics
+% Check passband flatness (should be monotonic, no ripple) - terminal output removed
+passband_idx = find(f_iir <= fc_lowpass);
+passband_gain = H_iir_dB(passband_idx);
+passband_ripple = max(passband_gain) - min(passband_gain);
+% Check gain at cutoff
+[~, idx_fc] = min(abs(f_iir - fc_lowpass));
+gain_at_fc = H_iir_dB(idx_fc);
+if abs(gain_at_fc - (-3)) < 0.5
+%% Pole-Zero plot for stability verification
+% Get poles and zeros
+zeros_iir = roots(b_iir);
+poles_iir = roots(a_iir);
+% Plot unit circle, poles and zeros (removed)
+% Check stability
+pole_magnitudes = abs(poles_iir);
+max_pole_magnitude = max(pole_magnitudes);
+\end{lstlisting}
+
+MATLAB's \texttt{freqz()} evaluates $H(e^{j\omega})$ at $N_{freq}$ equally spaced frequency points. The code locates the $-3$ dB point (defining cutoff frequency) and measures rolloff by comparing attenuation at 8 kHz and 16 kHz (one octave apart).
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.18]{T4IIRMagAndPhase4Plots.png}
+    \caption{Four plots for verification}
+    \label{fig:4plotVerify}
+\end{figure}
+
+% CHANGE: Enhanced results - consolidated and added quantitative interpretation
+From \textbf{Figure~\ref{fig:4plotVerify}}:
+
+\textbf{Rolloff:} Measured $26.67$ dB/octave (theoretical: $24$ dB/octave). At 32 kHz (3 octaves above cutoff), this provides $\sim$80 dB attenuation — the $2f_c$ component will be suppressed to $<$0.01\% of its original amplitude.
+
+\textbf{Cutoff accuracy:} $-3$ dB at $4.00195$ kHz (0.005\% error from target). Gain at exactly 4 kHz is $-3.02$ dB, confirming correct Butterworth behaviour.
+
+\textbf{Phase:} Nonlinear, as expected for IIR. Group delay varies from $\sim$0.1 ms at low frequencies to $\sim$0.3 ms near cutoff — this variation may slightly smear consonant transients but is acceptable for intelligibility.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T4UnitCircleIIR.png}
+    \caption{Pole-zero plot for filter stability}
+    \label{fig:poleZeroPlot}
+\end{figure}
+
+% CHANGE: Added stability margin analysis
+All poles lie inside the unit circle with maximum magnitude 0.87, providing a stability margin of 13\%. This ensures the filter remains stable even with minor coefficient quantisation errors (\textbf{Figure~\ref{fig:poleZeroPlot}}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.22]{T4NewButterTerm.png}
+    \caption{Pole-zero coefficients}
+    \label{fig:poleZeroTerm}
+\end{figure}
+
+\textbf{Figure~\ref{fig:poleZeroTerm}} shows the magnitude and complex values of the 4 poles shown in the previous figure.
+
+\subsubsection{Task 4 Part 3, Custom IIR Filter Implementation and Testing}
+
+\textbf{Procedure and Theory}\\
+From the transfer function:
+
+\begin{equation}
+H(z) = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2} + \cdots + b_M z^{-M}}
+           {1 + a_1 z^{-1} + a_2 z^{-2} + \cdots + a_N z^{-N}}  
+\end{equation}
+
+The time-domain difference equation is:
+
+\begin{equation}
+y[n] = b_0 x[n] + b_1 x[n-1] + \cdots + b_M x[n-M]
+       - a_1 y[n-1] - a_2 y[n-2] - \cdots - a_N y[n-N]  
+\end{equation}
+
+Or more compactly:
+
+\begin{equation}
+y[n] = \sum_{k=0}^{M} b_k\, x[n-k]
+       \;-\;
+       \sum_{k=1}^{N} a_k\, y[n-k]  
+\end{equation}
+
+Key implementation considerations: coefficient normalisation ($a_0 = 1$), zero initial conditions, double precision for numerical stability, and causal processing (only past values used).
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 4 part 3: IIR Filter Custom},label={lst:CustIIR_code}]
+function y = custom_iir_filter(b, a, x)
+% Store original orientation
+is_column = iscolumn(x);
+% Convert all inputs to row vectors for consistent processing
+b = b(:).';  % Ensure row vector
+a = a(:).';  % Ensure row vector
+x = x(:).';  % Ensure row vector
+% Get lengths
+L = length(x);      % Signal length
+M = length(b) - 1;  % Numerator order (number of b coefficients minus 1)
+N = length(a) - 1;  % Denominator order (number of a coefficients minus 1)
+%% Normalise coefficients if a(1) is not 1
+if a(1) ~= 1
+    b = b / a(1);
+    a = a / a(1);
+end
+%% Initialise buffers
+x_buffer = zeros(1, M + 1); % input
+% Output buffer: stores past N output samples
+y_buffer = zeros(1, N);
+%% Preallocate output array
+y = zeros(1, L);
+%% Main filtering loop
+for n = 1:L    
+    % Shift input buffer to the right (make room for new sample)
+    for k = M+1:-1:2
+        x_buffer(k) = x_buffer(k-1);
+    end
+    % Insert current input sample at the beginning
+    x_buffer(1) = x(n);
+        % Calculate feedforward (FIR) part: sum of b(k) * x[n-k+1]
+    feedforward_sum = 0;
+    for k = 1:M+1
+        feedforward_sum = feedforward_sum + b(k) * x_buffer(k);
+    end
+    % Calculate feedback (recursive) part: sum of a(k) * y[n-k+1]
+    feedback_sum = 0;
+    for k = 1:N
+        feedback_sum = feedback_sum + a(k+1) * y_buffer(k);
+    end
+    % Compute current output: y[n] = feedforward - feedback
+    y(n) = feedforward_sum - feedback_sum;    
+    % Shift output buffer to the right (make room for new output)
+    for k = N:-1:2
+        y_buffer(k) = y_buffer(k-1);
+    end
+    % Insert current output at the beginning (becomes y[n-1] for next iteration)
+    if N >= 1
+        y_buffer(1) = y(n);
+    end
+end
+%% Restore original orientation if input was column vector
+if is_column
+    y = y(:);
+end
+\end{lstlisting}
+
+The algorithm for each sample:
+
+\begin{enumerate}
+    \item \textbf{Shift input buffer:} Move all elements right, discarding the oldest.
+    \item \textbf{Insert new input:} Place current sample $x[n]$ at position 1.
+    \item \textbf{Feedforward sum:} Compute $\sum_{k=0}^{M} b_k\, x[n-k]$
+    \item \textbf{Feedback sum:} Compute $\sum_{k=1}^{N} a_k\, y[n-k]$
+    \item \textbf{Output:} $y[n] = \text{feedforward} - \text{feedback}$
+    \item \textbf{Shift output buffer:} Make room for the new output value.
+    \item \textbf{Store output:} Insert $y[n]$ into the output buffer for the next iteration.
+\end{enumerate}
+
+% CHANGE: Added insight about WHY feedback is subtracted
+The negative sign in the feedback term is critical: the transfer function denominator is $1 + a_1 z^{-1} + \ldots$, which rearranges to $y[n] = \ldots - a_1 y[n-1] - \ldots$ in the time domain. Using addition instead of subtraction would invert the filter's behaviour.
+
+\[
+H(z) = \frac{\sum_{k=0}^{M} b_k z^{-k}}
+           {1 + \sum_{k=1}^{N} a_k z^{-k}}
+\]
+
+which requires subtracting the feedback contributions in the time-domain equation.
+
+\textbf{Results and Discussion}\\
+Maximum error compared to MATLAB's optimised implementation is $9.5 \times 10^{-15}$, confirming mathematical equivalence. Any larger errors would indicate implementation bugs.
+
+The impulse and step response outputs match MATLAB's \texttt{filter()} function closely (\textbf{Figure~\ref{fig:BenchmarkPlots}}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T4MATvMine.png}
+    \caption{Plots to benchmark custom implementation}
+    \label{fig:BenchmarkPlots}
+\end{figure}
+
+% CHANGE: Added insight about WHAT the impulse/step responses tell us
+\textbf{Impulse response:} IIR filters have theoretically infinite impulse responses, but in practice the response decays toward zero. The decay rate depends on pole locations — poles closer to the unit circle produce slower decay.
+
+\textbf{Step response:} Settles to the DC gain value ($\sum b / \sum a = 1.0$), showing how quickly the filter reaches steady state. The minimal overshoot indicates well-damped transient behaviour.
+
+% CHANGE: Added insight about WHY the custom implementation is slower
+The custom implementation is $18.2\times$ slower than MATLAB's built-in function. This is expected: MATLAB's \texttt{filter()} is implemented in optimised C/Fortran with vectorised operations, while the custom version uses interpreted MATLAB loops with explicit buffer management.
+
+\subsubsection{Task 4 Part 4 IIR Filter and The Mixed Signal}
+
+\textbf{Procedure and Theory}\\
+Now applying the verified IIR lowpass filter to the mixed signal from Task 3 — the final filtering stage in the demodulator chain.
+
+After mixing in Task 3, the signal contains two components:
+
+\begin{itemize}
+    \item \textbf{Baseband (0--4 kHz):} The desired message signal
+    \[
+    \frac{m(t)}{2}\cos(\phi)
+    \]
+    
+    \item \textbf{High-frequency (around $2f_c$):} An unwanted component
+    \[
+    \frac{m(t)}{2}\cos(2\omega_c t + \phi)
+    \]
+\end{itemize}
+
+The 4 kHz lowpass filter will:
+
+\begin{itemize}
+    \item Pass the baseband message ($0, 4$ kHz)
+    \item Reject the $2f_c$ component (approximately $2 \times 16\,\text{kHz} = 32\,\text{kHz}$)
+\end{itemize}
+
+After lowpass filtering the expected outcome is:
+
+\begin{itemize}
+    \item Only the message signal remains
+    \item The output should resemble speech (though possibly noisy or phase-dependent)
+    \item The amplitude will be scaled by
+    \[
+    \frac{1}{2}\cos(\phi)
+    \]
+    where $\phi$ is the carrier phase.
+\end{itemize}
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 4 part 4: IIR Filter Mixed Sig},label={lst:MixSig_code}]
+tic;
+x_demodulated = custom_iir_filter(b_iir, a_iir, x_mixed);
+time_iir_filter = toc;
+%% Plot time domain comparison
+%% Frequency domain analysis
+% Compute spectrum of demodulated signal
+window_demod = hamming(length(x_demodulated))';
+x_demod_windowed = x_demodulated .* window_demod;
+X_demod = fft(x_demod_windowed);
+X_demod_magnitude = abs(X_demod) / length(X_demod);
+% Single-sided spectrum
+N_demod = length(X_demod);
+X_demod_single = X_demod_magnitude(1:floor(N_demod/2)+1);
+X_demod_single(2:end-1) = 2 * X_demod_single(2:end-1);
+f_demod = (0:floor(N_demod/2)) * fs / N_demod;
+% Convert to dB
+X_demod_dB = 20 * log10(X_demod_single + eps);
+% Also compute spectrum of mixed signal for comparison
+window_mixed = hamming(length(x_mixed))';
+x_mixed_windowed = x_mixed .* hamming_window;
+X_mixed = fft(x_mixed_windowed);
+X_mixed_magnitude = abs(X_mixed) / length(X_mixed);
+N_mixed = length(X_mixed);
+X_mixed_single = X_mixed_magnitude(1:floor(N_mixed/2)+1);
+X_mixed_single(2:end-1) = 2 * X_mixed_single(2:end-1);
+f_mixed = (0:floor(N_mixed/2)) * fs / N_mixed;
+X_mixed_dB = 20 * log10(X_mixed_single + eps);
+%% Plot frequency domain comparison (removed for clarity)
+%% Analysis of filtering effect
+% Calculate power in different frequency bands
+% Baseband (0 to 4 kHz) - message region
+baseband_idx_mixed = find(f_mixed <= fc_lowpass);
+baseband_idx_demod = find(f_demod <= fc_lowpass);
+baseband_power_before = sum(X_mixed_single(baseband_idx_mixed).^2);
+baseband_power_after = sum(X_demod_single(baseband_idx_demod).^2);
+% Stopband (above 4 kHz) - should be attenuated
+stopband_idx_mixed = find(f_mixed > fc_lowpass);
+stopband_idx_demod = find(f_demod > fc_lowpass);
+stopband_power_before = sum(X_mixed_single(stopband_idx_mixed).^2);
+stopband_power_after = sum(X_demod_single(stopband_idx_demod).^2);
+% 2fc region (2fc +- 4 kHz)
+fc2_low = 2*fc_final - 4000;
+fc2_high = 2*fc_final + 4000;
+fc2_idx_mixed = find(f_mixed >= fc2_low & f_mixed <= fc2_high);
+fc2_idx_demod = find(f_demod >= fc2_low & f_demod <= fc2_high);
+fc2_power_before = sum(X_mixed_single(fc2_idx_mixed).^2);
+fc2_power_after = sum(X_demod_single(fc2_idx_demod).^2);
+% Calculate attenuation (no print logic)
+baseband_change_dB = 10 * log10(baseband_power_after / baseband_power_before);
+stopband_attenuation_dB = 10 * log10(stopband_power_before / stopband_power_after);
+fc2_attenuation_dB = 10 * log10(fc2_power_before / fc2_power_after);
+%% SNR (print logic removed)
+% Estimate SNR as ratio of baseband power to remaining stopband power
+snr_before = 10 * log10(baseband_power_before / stopband_power_before);
+snr_after = 10 * log10(baseband_power_after / stopband_power_after);
+snr_improvement = snr_after - snr_before;
+%% Summary print (not shown)
+\end{lstlisting}
+
+This code applies the IIR filter to the mixed signal, then performs windowed FFT analysis to quantify:
+
+\begin{itemize}
+  \item Baseband power change (should be minimal)
+  \item Stopband power attenuation
+  \item $2f_c$ region power attenuation
+  \item SNR before and after filtering
+\end{itemize}
+
+\textbf{Results and Discussion}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T4DemodTimeDomPlot.png}
+    \caption{Comparison plot, showing the output after applying the lowpass filter}
+    \label{fig:DemodTestPlot}
+\end{figure}
+
+% CHANGE: Enhanced results - added waveform interpretation
+The mixed signal (\textbf{Figure~\ref{fig:DemodTestPlot}}) shows rapid $32kHz$ oscillations superimposed on the message envelope. After lowpass filtering, these oscillations vanish — the demodulated signal now shows only the baseband message, with the three character peaks clearly visible as smooth amplitude variations. The 50 ms zoom confirms clean waveform extraction with no residual carrier ripple.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T4SignalSpectra4Plots.png}
+    \caption{Signal spectrum plots}
+    \label{fig:SigSpecPlot}
+\end{figure}
+
+% CHANGE: Enhanced frequency domain discussion - added spectral interpretation
+In the frequency domain: the baseband (0--4 kHz) is preserved with only $-0.2$ dB change, while the $2f_c$ region ($28--36kHz$) is completely suppressed — no visible spectral content remains. The sharp transition at 4 kHz confirms the Butterworth cutoff is correctly positioned.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{T4SNRAndPowerTermOutput.png}
+    \caption{Terminal output showing the SNR and power improvements after applying the lowpass filter}
+    \label{fig:SNRPowerTerm}
+\end{figure}
+
+% CHANGE: Enhanced quantitative results - added practical interpretation
+Terminal output confirms:
+\begin{itemize}
+  \item $2f_c$ attenuation: $87.02$ dB (power reduced by factor of $5 \times 10^8$)
+  \item Stopband attenuation: $17.52$ dB
+  \item SNR: $-2.26 \rightarrow 15.09$ dB ($+17.35$ dB improvement)
+\end{itemize}
+
+The final 15 dB SNR corresponds to signal power $\sim$32$\times$ noise power. This matches AM radio quality \- intelligible speech but with audible background noise. The negative pre-filter SNR ($-2.26$ dB) indicates the $2f_c$ component initially dominated; after filtering, the message clearly emerges. Combined with the FIR bandpass stage (64 dB improvement), the complete demodulation chain achieves $>80$ dB total noise reduction from the original signal.
+
+\subsection{Task 5}
+
+\textbf{Procedure and Theory}
+
+From Task 3 that coherent demodulation produces:
+\begin{equation}
+s(t)\cos(\omega_c t + \phi)
+= \frac{m(t)}{2}\cos(\phi)
++ \frac{m(t)}{2}\cos(2\omega_c t + \phi).
+\end{equation}
+
+After lowpass filtering (Task 4), only the baseband term remains:
+\begin{equation}
+y(t) = \frac{m(t)}{2}\cos(\phi).
+\end{equation}
+
+Thus, the output amplitude is scaled by the factor
+\begin{equation}
+\cos(\phi).
+\end{equation}
+
+\textbf{Find $\phi_{\mathrm{opt}}$}
+
+We seek the phase $\phi_{\mathrm{opt}}$ that maximises $|\cos(\phi)|$ (which in turn maximises the output signal power):
+\begin{equation}
+\phi_{\mathrm{opt}} \;=\; \arg\max_{\phi} \; |\cos(\phi)|.
+\end{equation}
+The maximum value of $|\cos(\phi)|$ is $1$, attained when
+\begin{equation}
+\phi_{\mathrm{opt}} = n\pi,\qquad n\in\mathbb{Z}.
+\end{equation}
+
+\textbf{Optimisation Techniques}
+
+We will implement three approaches:
+\begin{itemize}
+  \item Coarse grid search: test phases at regular intervals (e.g., every $10^\circ$).
+  \item Fine grid search: refine the grid around the best coarse value.
+  \item Golden-section search: an efficient 1-D optimisation method for unimodal objectives.
+\end{itemize}
+
+\textbf{Metric for Optimisation}
+
+We use the RMS amplitude of the demodulated signal as the optimisation metric:
+\begin{equation}
+\mathrm{RMS} \;=\; \sqrt{\frac{1}{N}\sum_{n=0}^{N-1} y[n]^2 }.
+\end{equation}
+Maximising RMS corresponds to maximising $|\cos(\phi)|$ (and hence output power).
+
+\textbf{SNR Measurement}
+
+Signal-to-noise ratio (in dB) is defined as
+\begin{equation}
+\mathrm{SNR} \;=\; 10\log_{10}\!\left(\frac{P_{\mathrm{signal}}}{P_{\mathrm{noise}}}\right)\ \mathrm{dB}.
+\end{equation}
+We estimate powers via time-domain or spectral methods, for example
+\begin{equation}
+P_{\mathrm{signal}} \;=\; \frac{1}{N}\sum_{n=0}^{N-1} s_{\mathrm{band}}[n]^2,\qquad
+P_{\mathrm{noise}} \;=\; \frac{1}{N}\sum_{n=0}^{N-1} n_{\mathrm{band}}[n]^2,
+\end{equation}
+or using FFT-bin sums over the speech band (300--3400\,Hz):
+\begin{equation}
+P_{\mathrm{signal}} \;=\; \sum_{k\in\mathcal{K}_{\mathrm{speech}}} |Y[k]|^2,\qquad
+P_{\mathrm{noise}} \;=\; \sum_{k\in\mathcal{K}_{\mathrm{noise}}} |Y[k]|^2.
+\end{equation}
+
+Maximum RMS (and thus maximum $|\cos(\phi)|$) yields the best demodulated output and typically the highest estimated SNR when noise is independent of the demodulation phase.
+
+\begin{lstlisting}[style=mstyle,caption={MATLAB Code for Task 5: IIR Filter Mixed Sig},label={lst:Task5_code}]
+%% Sub-task 5.2: Generate Optimally Demodulated Signal
+% Generate carrier with optimal phase
+carrier_optimal = cos(2*pi*fc_final*t + phi_optimal);
+% Mix with bandpass filtered signal
+x_mixed_optimal = x_filtered .* carrier_optimal;
+% Apply lowpass filter
+x_final = custom_iir_filter(b_iir, a_iir, x_mixed_optimal);
+%% Sub-task 5.3: SNR Measurement
+% Compute spectrum of final demodulated signal
+window_final = hamming(length(x_final))';
+x_final_windowed = x_final .* window_final;
+X_final = fft(x_final_windowed);
+X_final_magnitude = abs(X_final) / length(X_final);
+N_final = length(X_final);
+X_final_single = X_final_magnitude(1:floor(N_final/2)+1);
+X_final_single(2:end-1) = 2 * X_final_single(2:end-1);
+f_final = (0:floor(N_final/2)) * fs / N_final;
+X_final_dB = 20 * log10(X_final_single + eps);
+%% Method 1: Speech band vs out-of-band noise
+% Define frequency bands
+speech_low = 300;       % Speech starts around 300 Hz
+speech_high = 3400;     % Speech ends around 3400 Hz (telephone quality)
+noise_low = 3800;       % Noise region above speech
+noise_high = 4000;      % Up to filter cutoff
+% Calculate power in speech band
+speech_idx = find(f_final >= speech_low & f_final <= speech_high);
+speech_power = sum(X_final_single(speech_idx).^2);
+% Calculate power in noise region (just above speech)
+noise_idx = find(f_final >= noise_low & f_final <= noise_high);
+if ~isempty(noise_idx)
+    noise_power_method1 = sum(X_final_single(noise_idx).^2);
+    % Scale to equivalent bandwidth
+    noise_bw = noise_high - noise_low;
+    speech_bw = speech_high - speech_low;
+    noise_power_scaled = noise_power_method1 * (speech_bw / noise_bw);
+    snr_method1 = 10 * log10(speech_power / noise_power_scaled);
+else
+    snr_method1 = NaN;
+end
+%% Method 2: Signal peaks vs RMS noise floor
+% Find spectral peaks (signal components) - estimated
+[peaks, peak_locs] = findpeaks(X_final_single, 'MinPeakHeight', max(X_final_single)*0.1);
+peak_freqs = f_final(peak_locs);
+% Only consider peaks in speech band
+speech_peak_idx = find(peak_freqs >= speech_low & peak_freqs <= speech_high);
+if ~isempty(speech_peak_idx)
+    signal_power_peaks = sum(peaks(speech_peak_idx).^2);
+else
+    signal_power_peaks = speech_power;
+end
+% Estimate noise floor as median of spectrum (robust to peaks)
+noise_floor = median(X_final_single(speech_idx));
+noise_power_method2 = noise_floor^2 * length(speech_idx);
+snr_method2 = 10 * log10(signal_power_peaks / noise_power_method2);
+%% Method 3: Time-domain SNR estimation using signal envelope
+% Compute signal envelope using Hilbert transform
+signal_envelope = abs(hilbert(x_final));
+% Estimate signal power from envelope peaks
+envelope_threshold = 0.3 * max(signal_envelope);
+signal_samples = signal_envelope > envelope_threshold;
+signal_power_time = mean(x_final(signal_samples).^2);
+% Estimate noise power from quiet regions
+noise_samples = signal_envelope < 0.1 * max(signal_envelope);
+if sum(noise_samples) > 100
+    noise_power_time = mean(x_final(noise_samples).^2);
+else
+    % If no quiet regions, use overall variance minus signal
+    noise_power_time = var(x_final) - signal_power_time * mean(signal_samples);
+    noise_power_time = max(noise_power_time, eps);  % Ensure positive
+end
+snr_method3 = 10 * log10(signal_power_time / noise_power_time);
+%% Method 4: Compare with phi = 0 (unoptimised) - removed
+% Calculate RMS with phi = 0
+carrier_zero = cos(2*pi*fc_final*t);
+x_mixed_zero = x_filtered .* carrier_zero;
+x_demod_zero = custom_iir_filter(b_iir, a_iir, x_mixed_zero);
+rms_zero = sqrt(mean(x_demod_zero.^2));
+% Calculate RMS with optimal phase
+rms_final = sqrt(mean(x_final.^2));
+% Calculate improvement
+amplitude_improvement = rms_final / rms_zero;
+power_improvement_dB = 20 * log10(amplitude_improvement);
+%% SNR Summary (print removed)
+%% Plot SNR analysis
+% Plot 1: Spectrum with frequency bands marked (removed)
+% Plot 2: Time-domain envelope (removed)
+% Plot 3: Comparison phi=0 vs phi optimal (removed)
+% Plot 4: SNR comparison bar chart (removed)
+%% Sub-task 5.4: Audio Playback and Message Identification
+% Normalise for playback (prevent clipping)
+x_playback = x_final / max(abs(x_final)) * 0.9;
+% Play the audio
+sound(x_playback, fs);
+% Wait for playback to complete
+pause(length(x_playback)/fs + 0.5);
+%% Save audio file for reference
+output_filename = 'demodulated_message.wav';
+audiowrite(output_filename, x_playback, fs);
+%% Final message identification prompt (removed)
+%% Complete summary (removed)
+\end{lstlisting}
+
+\textbf{Code Explanation}\\
+The implementation generates the carrier with the optimal phase, performs mixing and lowpass filtering, then evaluates signal quality using multiple SNR estimation methods. Three approaches were employed: frequency-domain analysis comparing power in the speech band (300--3400~Hz) to an adjacent noise band; spectral peak detection against the median noise floor; and time-domain envelope analysis using the Hilbert transform to separate speech-active and quiet regions.
+
+\textbf{Results and Discussion}
+
+Three phase optimisation techniques were compared: coarse grid search ($5^\circ$ steps), fine grid search ($1^\circ$ steps), and golden section search. The golden section method reduces the search interval by a factor of $1/\varphi$ (the golden ratio) at each iteration, converging in $\mathcal{O}(\log(1/\varepsilon))$ iterations for tolerance $\varepsilon$.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T5PhaseOptPlots.png}
+    \caption{Phase optimisation results showing RMS amplitude versus carrier phase for three search methods}
+    \label{fig:phase_opt}
+\end{figure}
+
+As shown in \textbf{Figure~\ref{fig:phase_opt}}, all three methods converge to an optimal phase of $\phi = 120^\circ$ ($2.0944$~rad), achieving maximum RMS amplitude of $0.0638$. This phase offset arises from the unknown transmission delay between the original modulator and the receiver—the carrier phase at the receiver differs from zero due to propagation effects.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.3]{T5PhaseOptTechniqTerm.png}
+    \caption{Terminal output confirming phase optimisation convergence}
+    \label{fig:phase_term}
+\end{figure}
+
+The theoretical basis for phase sensitivity is evident from the demodulation equation: after mixing and lowpass filtering, the output amplitude scales as $\cos(\phi)$. At $\phi = 0^\circ$, output is maximised; at $\phi = 90^\circ$, output is zero (quadrature null). The measured optimal phase of $120^\circ$ indicates the transmitted signal's carrier had a phase offset of approximately $-60^\circ$ relative to the receiver's reference.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.32]{T5SNRMeasTerm.png}
+    \caption{Terminal output showing SNR measurements from three estimation methods}
+    \label{fig:snr_term}
+\end{figure}
+
+The time-domain envelope method yielded the highest SNR estimate ($16.89dB$) as it directly measures signal power during speech activity versus noise power during silence—appropriate for non-stationary speech signals. The frequency-band method ($9.94~dB$) underestimates SNR because it includes both speech and inter-syllable silence in its ``signal'' region. The peaks-versus-floor method ($2.77~dB$) is unreliable for speech as the spectral envelope lacks the sharp peaks this method requires.
+
+Phase optimisation provided a measured amplitude improvement of $1.52\times$ compared to $\phi = 0$, corresponding to a 3.64~dB power increase. This confirms that the initial arbitrary phase choice was suboptimal and that carrier phase recovery is essential for maximising demodulated signal quality.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{T5FinalTDSig.png}
+    \caption{Final demodulated audio signal showing the three-letter message}
+    \label{fig:final_signal}
+\end{figure}
+
+The final demodulated signal (\textbf{Figure~\ref{fig:final_signal}}) clearly shows three distinct amplitude peaks corresponding to the spoken letters. Upon playback, the message was identified as \textbf{``KVH''}. The clarity of the recovered audio, despite the initial heavy noise contamination, demonstrates the effectiveness of the complete demodulation chain: bandpass filtering (64.39~dB SNR improvement), coherent demodulation with carrier recovery, lowpass filtering (17.34~dB SNR improvement), and phase optimisation ($1.52\times$ amplitude gain).
+
+\section{Conclusion}
+
+This report has presented the complete demodulation of a DSB-SC amplitude modulated signal to recover a three-letter spoken message. The implementation demonstrated the practical application of fundamental digital signal processing concepts including spectral analysis, filter design, and coherent demodulation.
+
+The key findings are summarised as follows. Through FFT analysis, the carrier frequency was identified as 16~kHz with the AM signal occupying the band from 12~kHz to 20~kHz. The sampling frequency of 96~kHz provided adequate margin above the Nyquist limit for all processing stages.
+
+A 159-tap FIR bandpass filter was designed using the impulse response truncation method with Hamming windowing. The filter achieved 53.64~dB stopband attenuation (exceeding the 50~dB specification) and 0.0376~dB passband ripple (well within the 0.1~dB limit). Application of this filter improved the SNR by 64.39~dB, transforming a heavily noise-contaminated signal into one with clearly distinguishable AM envelope characteristics.
+
+Carrier recovery was accomplished using square-law detection, which generated a spectral component at $2f_c = 32$~kHz from which the carrier frequency was unambiguously determined. The 4th-order Butterworth IIR lowpass filter provided 80~dB/decade rolloff, effectively suppressing the $2f_c$ component whilst preserving the baseband message content.
+
+Phase optimisation proved essential for maximising demodulated signal quality. The optimal carrier phase of $120^\circ$ yielded a $1.52\times$ amplitude improvement compared to the initial $\phi = 0$ assumption. The final time-domain SNR of 16.89~dB was sufficient for clear audio intelligibility, and the recovered message was identified as ``KVH''.
+
+The custom implementations of both FIR convolution and IIR filtering demonstrated mathematical equivalence to MATLAB's built-in functions whilst providing insight into the underlying algorithms. The systematic approach—from initial signal characterisation through filter design, verification, and application—illustrates the complete signal processing design cycle applicable to practical communication systems.
+
+\newpage
+
+\section{References}
+
+\newpage
+
+\section{Appendix}
+
+Include some flowcharts for code design if possible.
+Include entire code listings if possible or split for the tasks. (code snippet for task 1, task 2 etc.)
+Include conv.m and iir filter design code.
+
+\end{document}

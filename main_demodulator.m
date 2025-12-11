@@ -6,7 +6,6 @@ close all;
 clc;
 
 %% Read the audio file
-% Replace 'your_signal.wav' with your actual filename
 filename = 'Sahas_Talasila.wav';
 [x, fs] = audioread(filename);
 
@@ -49,6 +48,13 @@ fprintf('Peak-to-peak:          %.6f\n', peak_to_peak);
 fprintf('RMS amplitude:         %.6f\n', rms_amplitude);
 
 %% Sub-task 1.2: Time Domain Analysis
+
+% Plot spectrogram
+figure;
+spectrogram(x, 1024, 512, 1024, fs, 'yaxis');
+title('Spectrogram of Sahas\_Talasila.wav');
+xlabel('Time (s)');
+ylabel('Frequency (kHz)');
 
 % Create time vector
 t = (0:N-1) / fs;
@@ -887,10 +893,10 @@ passband_power_after = mean(X_filtered_single(passband_indices_signal).^2);
 % Stopband power (should be much lower after filtering)
 stopband_indices_lower = find(f <= fstop_lower);
 stopband_indices_upper = find(f >= fstop_upper & f <= fs/2);
-stopband_indices_signal = [stopband_indices_lower, stopband_indices_upper];
+passband_indices_signal = [stopband_indices_lower, stopband_indices_upper];
 
-stopband_power_before = mean(X_hamming_single(stopband_indices_signal).^2);
-stopband_power_after = mean(X_filtered_single(stopband_indices_signal).^2);
+stopband_power_before = mean(X_hamming_single(passband_indices_signal).^2);
+stopband_power_after = mean(X_filtered_single(passband_indices_signal).^2);
 
 % Calculate noise reduction in dB
 noise_reduction_dB = 10 * log10(stopband_power_before / stopband_power_after);
@@ -902,12 +908,12 @@ snr_improvement = snr_after - snr_before;
 
 fprintf('--------------------------------------------\n');
 fprintf('FILTERING PERFORMANCE\n');
-fprintf('PASSBAND POWER:\n');
+fprintf('STOPBAND POWER:\n');
 fprintf('  Before filtering:        %.6e\n', passband_power_before);
 fprintf('  After filtering:         %.6e\n', passband_power_after);
 fprintf('  Change:                  %.2f dB\n', 10*log10(passband_power_after/passband_power_before));
 fprintf('--------------------------------------------\n');
-fprintf('STOPBAND POWER:\n');
+fprintf('PASSBAND POWER:\n');
 fprintf('  Before filtering:        %.6e\n', stopband_power_before);
 fprintf('  After filtering:         %.6e\n', stopband_power_after);
 fprintf('  Noise reduction:         %.2f dB\n', noise_reduction_dB);
@@ -1249,6 +1255,199 @@ ylabel('Value', 'FontSize', 11);
 title('Denominator Coefficients (a)', 'FontSize', 12);
 grid on;
 
+%% Sub-task 4.2: IIR Frequency Response Verification
+fprintf('IIR FREQUENCY RESPONSE VERIFICATION \n');
+
+% Compute frequency response using freqz
+N_freq = 8192;  % Number of frequency points
+[H_iir, f_iir] = freqz(b_iir, a_iir, N_freq, fs);
+
+% Magnitude response in dB
+H_iir_magnitude = abs(H_iir);
+H_iir_dB = 20 * log10(H_iir_magnitude + eps);
+
+% Phase response
+H_iir_phase = angle(H_iir);
+H_iir_phase_unwrapped = unwrap(H_iir_phase);
+
+figure('Name', 'IIR Filter Frequency Response', 'Position', [100, 100, 1200, 700]);
+
+% Full spectrum magnitude response
+subplot(2,2,1);
+plot(f_iir/1000, H_iir_dB, 'b', 'LineWidth', 1.5);
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title('IIR Lowpass Filter - Magnitude Response (Full Range)', 'FontSize', 12);
+grid on;
+xlim([0, fs/2000]);
+ylim([-100, 5]);
+
+hold on;
+xline(fc_lowpass/1000, 'r--', 'LineWidth', 1.5);
+yline(-3, 'g--', 'LineWidth', 1.5);
+yline(0, 'k-', 'LineWidth', 0.5);
+legend('Response', 'f_c = 4 kHz', '-3 dB', '0 dB', 'Location', 'southwest');
+hold off;
+
+% Passband detail
+subplot(2,2,2);
+plot(f_iir/1000, H_iir_dB, 'b', 'LineWidth', 1.5);
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title('Passband Detail', 'FontSize', 12);
+grid on;
+xlim([0, 8]);
+ylim([-10, 2]);
+
+hold on;
+xline(fc_lowpass/1000, 'r--', 'LineWidth', 1.5);
+yline(-3, 'g--', 'LineWidth', 1.5);
+yline(0, 'k-', 'LineWidth', 0.5);
+legend('Response', 'f_c = 4 kHz', '-3 dB', '0 dB', 'Location', 'southwest');
+hold off;
+
+% Phase response
+subplot(2,2,3);
+plot(f_iir/1000, H_iir_phase_unwrapped * 180/pi, 'b', 'LineWidth', 1.5);
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Phase (degrees)', 'FontSize', 11);
+title('Phase Response', 'FontSize', 12);
+grid on;
+xlim([0, 10]);
+
+hold on;
+xline(fc_lowpass/1000, 'r--', 'LineWidth', 1.5);
+legend('Phase', 'f_c = 4 kHz', 'Location', 'southwest');
+hold off;
+
+% Linear magnitude (to show Butterworth shape)
+subplot(2,2,4);
+plot(f_iir/1000, H_iir_magnitude, 'b', 'LineWidth', 1.5);
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (linear)', 'FontSize', 11);
+title('Linear Magnitude Response', 'FontSize', 12);
+grid on;
+xlim([0, 20]);
+ylim([0, 1.1]);
+
+hold on;
+xline(fc_lowpass/1000, 'r--', 'LineWidth', 1.5);
+yline(0.707, 'g--', 'LineWidth', 1.5);
+yline(1.0, 'k-', 'LineWidth', 0.5);
+legend('Response', 'f_c = 4 kHz', '0.707 (-3 dB)', 'Unity', 'Location', 'northeast');
+hold off;
+
+% Find -3 dB point
+idx_3dB = find(H_iir_dB <= -3, 1, 'first');
+if ~isempty(idx_3dB)
+    f_3dB_actual = f_iir(idx_3dB);
+else
+    f_3dB_actual = NaN;
+end
+
+% Measure gain at specific frequencies
+f_test_points = [100, 1000, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 20000];
+gain_at_test_points = zeros(size(f_test_points));
+
+for i = 1:length(f_test_points)
+    [~, idx] = min(abs(f_iir - f_test_points(i)));
+    gain_at_test_points(i) = H_iir_dB(idx);
+end
+
+% Measure rolloff rate (attenuation per octave after cutoff)
+% Compare attenuation at 8 kHz (1 octave above 4 kHz) and 16 kHz (2 octaves)
+[~, idx_8k] = min(abs(f_iir - 8000));
+[~, idx_16k] = min(abs(f_iir - 16000));
+atten_8k = H_iir_dB(idx_8k);
+atten_16k = H_iir_dB(idx_16k);
+rolloff_per_octave = atten_8k - atten_16k;
+
+fprintf('CUTOFF FREQUENCY VERIFICATION:\n');
+fprintf('  Specified cutoff:        %d Hz\n', fc_lowpass);
+fprintf('  Measured -3 dB point:    %.2f Hz\n', f_3dB_actual);
+fprintf('  Error:                   %.2f Hz\n', abs(f_3dB_actual - fc_lowpass));
+
+fprintf('\nGAIN AT TEST FREQUENCIES:\n');
+fprintf('  Frequency (Hz)    Gain (dB)\n');
+fprintf('  ------------      ---------\n');
+for i = 1:length(f_test_points)
+    fprintf('  %6d            %7.2f\n', f_test_points(i), gain_at_test_points(i));
+end
+
+fprintf('\nROLLOFF CHARACTERISTICS:\n');
+fprintf('  Attenuation at 8 kHz:    %.2f dB\n', atten_8k);
+fprintf('  Attenuation at 16 kHz:   %.2f dB\n', atten_16k);
+fprintf('  Rolloff (8k to 16k):     %.2f dB/octave\n', rolloff_per_octave);
+fprintf('  Expected (4th order):    ~24 dB/octave\n');
+fprintf('\nBUTTERWORTH VERIFICATION:\n');
+
+% Check passband flatness (should be monotonic, no ripple)
+passband_idx = find(f_iir <= fc_lowpass);
+passband_gain = H_iir_dB(passband_idx);
+passband_ripple = max(passband_gain) - min(passband_gain);
+
+fprintf('  Passband ripple:         %.4f dB\n', passband_ripple);
+
+if passband_ripple < 0.1
+    fprintf('  Passband:                MAXIMALLY FLAT (as expected)\n');
+else
+    fprintf('  Passband:                UNEXPECTED RIPPLE\n');
+end
+
+% Check gain at cutoff
+[~, idx_fc] = min(abs(f_iir - fc_lowpass));
+gain_at_fc = H_iir_dB(idx_fc);
+fprintf('  Gain at cutoff (4 kHz):  %.2f dB (should be ~-3 dB)\n', gain_at_fc);
+
+if abs(gain_at_fc - (-3)) < 0.5
+    fprintf('  Cutoff definition:       CORRECT\n');
+else
+    fprintf('  Cutoff definition:       CHECK DESIGN\n');
+end
+
+figure('Name', 'IIR Filter Pole-Zero Plot', 'Position', [100, 100, 600, 600]);
+
+% Get poles and zeros
+zeros_iir = roots(b_iir);
+poles_iir = roots(a_iir);
+
+% Plot unit circle
+theta_circle = linspace(0, 2*pi, 100);
+plot(cos(theta_circle), sin(theta_circle), 'k--', 'LineWidth', 1);
+hold on;
+
+% Plot zeros
+plot(real(zeros_iir), imag(zeros_iir), 'bo', 'MarkerSize', 10, 'LineWidth', 2);
+
+% Plot poles
+plot(real(poles_iir), imag(poles_iir), 'rx', 'MarkerSize', 10, 'LineWidth', 2);
+
+hold off;
+xlabel('Real Part', 'FontSize', 11);
+ylabel('Imaginary Part', 'FontSize', 11);
+title('Pole-Zero Plot (Poles Must Be Inside Unit Circle for Stability)', 'FontSize', 12);
+legend('Unit Circle', 'Zeros', 'Poles', 'Location', 'best');
+grid on;
+axis equal;
+xlim([-1.5, 1.5]);
+ylim([-1.5, 1.5]);
+
+% Check stability
+pole_magnitudes = abs(poles_iir);
+max_pole_magnitude = max(pole_magnitudes);
+
+fprintf('\nSTABILITY ANALYSIS:\n');
+fprintf('  Pole magnitudes:\n');
+for i = 1:length(poles_iir)
+    fprintf('    Pole %d: %.6f + %.6fj, |pole| = %.6f\n', i, real(poles_iir(i)), imag(poles_iir(i)), abs(poles_iir(i)));
+end
+fprintf('  Maximum pole magnitude:  %.6f\n', max_pole_magnitude);
+
+if max_pole_magnitude < 1
+    fprintf('  Filter stability:        STABLE (all poles inside unit circle)\n');
+else
+    fprintf('  Filter stability:        UNSTABLE - REDESIGN REQUIRED\n');
+end
 %% Sub-task 4.3: Custom IIR Filter Verification
 
 fprintf('       CUSTOM IIR FILTER VERIFICATION      \n');
@@ -1394,6 +1593,258 @@ legend('MATLAB', 'Custom', 'DC Gain', 'Location', 'best');
 grid on;
 
 fprintf('\nCustom IIR filter implementation verified.\n');
+
+%% Sub-task 4.4: Applying IIR Lowpass Filter to Mixed Signal
+fprintf('       APPLYING IIR LOWPASS FILTER         \n');
+
+%% Apply lowpass filter using custom implementation
+
+fprintf('\nFiltering mixed signal with custom IIR filter...\n');
+
+tic;
+x_demodulated = custom_iir_filter(b_iir, a_iir, x_mixed);
+time_iir_filter = toc;
+
+fprintf('  Input signal length:     %d samples (%.2f seconds)\n', length(x_mixed), length(x_mixed)/fs);
+fprintf('  Output signal length:    %d samples (%.2f seconds)\n', length(x_demodulated), length(x_demodulated)/fs);
+fprintf('  Filtering time:          %.2f seconds\n', time_iir_filter);
+
+%% Time domain analysis
+
+fprintf('\nTIME DOMAIN ANALYSIS:\n');
+fprintf('---------------------\n');
+
+% Calculate statistics
+mixed_max = max(abs(x_mixed));
+mixed_rms = sqrt(mean(x_mixed.^2));
+demod_max = max(abs(x_demodulated));
+demod_rms = sqrt(mean(x_demodulated.^2));
+
+fprintf('  Mixed signal:\n');
+fprintf('    Maximum amplitude:     %.6f\n', mixed_max);
+fprintf('    RMS amplitude:         %.6f\n', mixed_rms);
+fprintf('  Demodulated signal:\n');
+fprintf('    Maximum amplitude:     %.6f\n', demod_max);
+fprintf('    RMS amplitude:         %.6f\n', demod_rms);
+fprintf('  Amplitude ratio:         %.4f\n', demod_rms/mixed_rms);
+
+%% Plot time domain comparison
+
+figure('Name', 'IIR Lowpass Filter - Time Domain', 'Position', [100, 100, 1200, 800]);
+
+% Plot 1: Mixed signal (input to lowpass filter)
+subplot(3,1,1);
+plot(t, x_mixed, 'b', 'LineWidth', 0.5);
+xlabel('Time (seconds)', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Mixed Signal (Input to Lowpass Filter)', 'FontSize', 12);
+grid on;
+xlim([0, t(end)]);
+
+% Plot 2: Demodulated signal (output of lowpass filter)
+subplot(3,1,2);
+plot(t, x_demodulated, 'r', 'LineWidth', 0.5);
+xlabel('Time (seconds)', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Demodulated Signal (Output of Lowpass Filter)', 'FontSize', 12);
+grid on;
+xlim([0, t(end)]);
+
+% Plot 3: Overlay comparison (portion of signal)
+subplot(3,1,3);
+% Show a portion where we can see detail
+plot_duration = 0.05;  % 50 ms
+plot_samples = round(plot_duration * fs);
+plot_start = round(length(t) / 2);  % Middle of signal
+plot_end = min(plot_start + plot_samples, length(t));
+t_portion = t(plot_start:plot_end);
+
+plot(t_portion, x_mixed(plot_start:plot_end), 'b', 'LineWidth', 0.5);
+hold on;
+plot(t_portion, x_demodulated(plot_start:plot_end), 'r', 'LineWidth', 1.5);
+hold off;
+xlabel('Time (seconds)', 'FontSize', 11);
+ylabel('Amplitude', 'FontSize', 11);
+title('Comparison (50 ms Portion from Middle of Signal)', 'FontSize', 12);
+legend('Mixed', 'Demodulated', 'Location', 'best');
+grid on;
+
+%% Frequency domain analysis
+
+fprintf('\nFREQUENCY DOMAIN ANALYSIS:\n');
+fprintf('--------------------------\n');
+
+% Compute spectrum of demodulated signal
+window_demod = hamming(length(x_demodulated))';
+x_demod_windowed = x_demodulated .* window_demod;
+X_demod = fft(x_demod_windowed);
+X_demod_magnitude = abs(X_demod) / length(X_demod);
+
+% Single-sided spectrum
+N_demod = length(X_demod);
+X_demod_single = X_demod_magnitude(1:floor(N_demod/2)+1);
+X_demod_single(2:end-1) = 2 * X_demod_single(2:end-1);
+f_demod = (0:floor(N_demod/2)) * fs / N_demod;
+
+% Convert to dB
+X_demod_dB = 20 * log10(X_demod_single + eps);
+
+% Also compute spectrum of mixed signal for comparison
+window_mixed = hamming(length(x_mixed))';
+x_mixed_windowed = x_mixed .* window_mixed;
+X_mixed = fft(x_mixed_windowed);
+X_mixed_magnitude = abs(X_mixed) / length(X_mixed);
+
+N_mixed = length(X_mixed);
+X_mixed_single = X_mixed_magnitude(1:floor(N_mixed/2)+1);
+X_mixed_single(2:end-1) = 2 * X_mixed_single(2:end-1);
+f_mixed = (0:floor(N_mixed/2)) * fs / N_mixed;
+X_mixed_dB = 20 * log10(X_mixed_single + eps);
+
+%% Plot frequency domain comparison
+
+figure('Name', 'IIR Lowpass Filter - Frequency Domain', 'Position', [100, 100, 1200, 800]);
+
+% Plot 1: Mixed signal spectrum (full range)
+subplot(2,2,1);
+plot(f_mixed/1000, X_mixed_dB, 'b', 'LineWidth', 1);
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title('Mixed Signal Spectrum (Before Lowpass)', 'FontSize', 12);
+grid on;
+xlim([0, fs/2000]);
+ylim([-120, max(X_mixed_dB)+10]);
+
+hold on;
+xline(fc_lowpass/1000, 'r--', 'LineWidth', 1.5);
+xline(2*fc_final/1000, 'g--', 'LineWidth', 1.5);
+legend('Spectrum', 'Lowpass cutoff (4 kHz)', sprintf('2f_c (%.0f kHz)', 2*fc_final/1000), 'Location', 'northeast');
+hold off;
+
+% Plot 2: Demodulated signal spectrum (full range)
+subplot(2,2,2);
+plot(f_demod/1000, X_demod_dB, 'r', 'LineWidth', 1);
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title('Demodulated Signal Spectrum (After Lowpass)', 'FontSize', 12);
+grid on;
+xlim([0, fs/2000]);
+ylim([-120, max(X_demod_dB)+10]);
+
+hold on;
+xline(fc_lowpass/1000, 'r--', 'LineWidth', 1.5);
+legend('Spectrum', 'Lowpass cutoff (4 kHz)', 'Location', 'northeast');
+hold off;
+
+% Plot 3: Baseband detail (0-10 kHz)
+subplot(2,2,3);
+plot(f_mixed/1000, X_mixed_dB, 'b', 'LineWidth', 1);
+hold on;
+plot(f_demod/1000, X_demod_dB, 'r', 'LineWidth', 1.5);
+xline(fc_lowpass/1000, 'k--', 'LineWidth', 1.5);
+hold off;
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title('Baseband Comparison (0-10 kHz)', 'FontSize', 12);
+legend('Before Lowpass', 'After Lowpass', 'Cutoff (4 kHz)', 'Location', 'northeast');
+grid on;
+xlim([0, 10]);
+ylim([-120, max(X_mixed_dB)+10]);
+
+% Plot 4: Comparison around 2fc region
+subplot(2,2,4);
+plot(f_mixed/1000, X_mixed_dB, 'b', 'LineWidth', 1);
+hold on;
+plot(f_demod/1000, X_demod_dB, 'r', 'LineWidth', 1.5);
+xline(2*fc_final/1000, 'g--', 'LineWidth', 1.5);
+hold off;
+xlabel('Frequency (kHz)', 'FontSize', 11);
+ylabel('Magnitude (dB)', 'FontSize', 11);
+title(sprintf('2f_c Region (%.0f kHz)', 2*fc_final/1000), 'FontSize', 12);
+legend('Before Lowpass', 'After Lowpass', '2f_c', 'Location', 'northeast');
+grid on;
+xlim([2*fc_final/1000 - 10, min(2*fc_final/1000 + 10, fs/2000)]);
+ylim([-120, max(X_mixed_dB)+10]);
+
+%% Quantitative analysis of filtering effect
+
+fprintf('\nFILTERING EFFECTIVENESS:\n');
+fprintf('------------------------\n');
+
+% Calculate power in different frequency bands
+% Baseband (0 to 4 kHz) - message region
+baseband_idx_mixed = find(f_mixed <= fc_lowpass);
+baseband_idx_demod = find(f_demod <= fc_lowpass);
+
+baseband_power_before = sum(X_mixed_single(baseband_idx_mixed).^2);
+baseband_power_after = sum(X_demod_single(baseband_idx_demod).^2);
+
+% Stopband (above 4 kHz) - should be attenuated
+stopband_idx_mixed = find(f_mixed > fc_lowpass);
+stopband_idx_demod = find(f_demod > fc_lowpass);
+
+stopband_power_before = sum(X_mixed_single(stopband_idx_mixed).^2);
+stopband_power_after = sum(X_demod_single(stopband_idx_demod).^2);
+
+% 2fc region (2fc ± 4 kHz)
+fc2_low = 2*fc_final - 4000;
+fc2_high = 2*fc_final + 4000;
+fc2_idx_mixed = find(f_mixed >= fc2_low & f_mixed <= fc2_high);
+fc2_idx_demod = find(f_demod >= fc2_low & f_demod <= fc2_high);
+
+fc2_power_before = sum(X_mixed_single(fc2_idx_mixed).^2);
+fc2_power_after = sum(X_demod_single(fc2_idx_demod).^2);
+
+% Calculate attenuation
+baseband_change_dB = 10 * log10(baseband_power_after / baseband_power_before);
+stopband_attenuation_dB = 10 * log10(stopband_power_before / stopband_power_after);
+fc2_attenuation_dB = 10 * log10(fc2_power_before / fc2_power_after);
+
+fprintf('  Baseband (0-4 kHz):\n');
+fprintf('    Power before:          %.6e\n', baseband_power_before);
+fprintf('    Power after:           %.6e\n', baseband_power_after);
+fprintf('    Change:                %.2f dB\n', baseband_change_dB);
+fprintf('\n');
+fprintf('  Stopband (>4 kHz):\n');
+fprintf('    Power before:          %.6e\n', stopband_power_before);
+fprintf('    Power after:           %.6e\n', stopband_power_after);
+fprintf('    Attenuation:           %.2f dB\n', stopband_attenuation_dB);
+fprintf('\n');
+fprintf('  2f_c region (%.0f-%.0f kHz):\n', fc2_low/1000, fc2_high/1000);
+fprintf('    Power before:          %.6e\n', fc2_power_before);
+fprintf('    Power after:           %.6e\n', fc2_power_after);
+fprintf('    Attenuation:           %.2f dB\n', fc2_attenuation_dB);
+
+%% SNR estimation
+
+fprintf('\nSIGNAL-TO-NOISE RATIO ESTIMATION:\n');
+fprintf('----------------------------------\n');
+
+% Estimate SNR as ratio of baseband power to remaining stopband power
+snr_before = 10 * log10(baseband_power_before / stopband_power_before);
+snr_after = 10 * log10(baseband_power_after / stopband_power_after);
+snr_improvement = snr_after - snr_before;
+
+fprintf('  SNR before lowpass:      %.2f dB\n', snr_before);
+fprintf('  SNR after lowpass:       %.2f dB\n', snr_after);
+fprintf('  SNR improvement:         %.2f dB\n', snr_improvement);
+
+%% Summary
+
+fprintf('\nTASK 4 SUMMARY:\n');
+fprintf('---------------\n');
+fprintf('  IIR Filter:              4th order Butterworth lowpass\n');
+fprintf('  Cutoff frequency:        %d Hz\n', fc_lowpass);
+fprintf('  Baseband preserved:      %.2f dB change\n', baseband_change_dB);
+fprintf('  2f_c component removed:  %.2f dB attenuation\n', fc2_attenuation_dB);
+fprintf('  Demodulated signal ready for phase optimisation (Task 5)\n');
+
+%% Store demodulated signal for Task 5
+
+% The signal x_demodulated is now ready for Task 5
+% Current phase is phi = 0, will be optimised in Task 5
+fprintf('\nSignal x_demodulated stored for Task 5.\n');
+fprintf('Current carrier phase: phi = %.4f radians (%.2f degrees)\n', phi, phi*180/pi);
 
 %% ========================================================================
 %                           TASK 5: AUDIO OUTPUT
@@ -1653,8 +2104,6 @@ grid on;
 xlim([0, 180]);
 
 %% Sub-task 5.2: Generate Optimally Demodulated Signal
-
-fprintf('\n============================================\n');
 fprintf('       FINAL DEMODULATION                  \n');
 
 % Generate carrier with optimal phase
@@ -1671,8 +2120,6 @@ fprintf('  Optimal phase:           %.4f rad (%.2f degrees)\n', phi_optimal, phi
 fprintf('  Final signal length:     %d samples (%.2f seconds)\n', length(x_final), length(x_final)/fs);
 
 %% Sub-task 5.3: SNR Measurement
-
-fprintf('\n============================================\n');
 fprintf('       SNR MEASUREMENT                     \n');
 
 % Compute spectrum of final demodulated signal
@@ -1924,7 +2371,6 @@ fprintf('  You identified the message as: %s\n', upper(message));
 fprintf('\n');
 
 %% Complete summary
-
 fprintf('\n');
 fprintf('#                 DEMODULATION COMPLETE                      #\n');
 fprintf('\n');
@@ -1951,4 +2397,3 @@ fprintf('    - Optimal phase: %.2f degrees\n', phi_optimal*180/pi);
 fprintf('    - Estimated SNR: %.1f dB (average)\n', mean([snr_method1, snr_method2, snr_method3], 'omitnan'));
 fprintf('    - Message identified: %s\n', upper(message));
 fprintf('\n');
-fprintf('##############################################################\n');
