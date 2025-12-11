@@ -186,7 +186,7 @@ However, the time domain cannot reveal $f_c$ or bandwidth—frequency domain ana
 
 \textbf{Procedure and Theory}\\
 % CHANGE: Minor tightening - "allowing the easy identification" -> "enabling identification"
-The Discrete Fourier Transform (DFT) decomposes a discrete time-domain signal into its frequency components, enabling identification of the carrier frequency $f_c$ and determination of the AM signal band. For a signal $x[n]$ of length $N$, the DFT is defined as:
+The Discrete Fourier Transform (DFT) decomposes a discrete time-domain signal into its frequency components [2], enabling identification of the carrier frequency $f_c$ and determination of the AM signal band. For a signal $x[n]$ of length $N$, the DFT is defined as:
 
 \begin{equation}
 X[k] = \sum_{n=0}^{N-1} x[n]\,e^{-j\frac{2\pi kn}{N}},  
@@ -317,7 +317,7 @@ The background displays a high wideband noise floor at approximately $60$ to $80
 
 Three clear time regions of activity occur at approximately $0.55s$, $1.35s$, and $2.1s$, corresponding to the observed bursts.
 
-\textbf{Figure~\ref{fig:SpectroOutput}} shows the spectrogram clearly:
+\textbf{Figure~\ref{fig:SpectroOutput}} shows the spectrogram clearly [1]:
 
 \begin{figure}[H]
     \centering
@@ -1044,7 +1044,7 @@ The process is sensitive to phase: baseband amplitude scales with $\cos(\phi)$, 
 \subsection{Task 4 IIR Filter Design and Verification}
 
 % CHANGE: Condensed intro - removed fragmented sentence
-This task implements a 4th order Butterworth IIR lowpass filter with 4 kHz cutoff to remove the $2f_c$ component from the mixed signal (Task 3), completing the demodulation chain.
+This task implements a 4th order Butterworth IIR lowpass filter with 4 kHz cutoff to remove the $2f_c$ component from the mixed signal (Task 3), completing the demodulation chain [3].
 
 \subsubsection{Task 4 Part 1, Designing IIR Filters}
 
@@ -1725,7 +1725,7 @@ The implementation generates the carrier with the optimal phase, performs mixing
 
 \textbf{Results and Discussion}
 
-Three phase optimisation techniques were compared: coarse grid search ($5^\circ$ steps), fine grid search ($1^\circ$ steps), and golden section search. The golden section method reduces the search interval by a factor of $1/\varphi$ (the golden ratio) at each iteration, converging in $\mathcal{O}(\log(1/\varepsilon))$ iterations for tolerance $\varepsilon$.
+Three phase optimisation techniques were compared: coarse grid search ($5^\circ$ steps), fine grid search ($1^\circ$ steps), and golden section search [4]. The golden section method reduces the search interval by a factor of $1/\varphi$ (the golden ratio) at each iteration, converging in $\mathcal{O}(\log(1/\varepsilon))$ iterations for tolerance $\varepsilon$.
 
 \begin{figure}[H]
     \centering
@@ -1752,7 +1752,9 @@ The theoretical basis for phase sensitivity is evident from the demodulation equ
     \label{fig:snr_term}
 \end{figure}
 
-The time-domain envelope method yielded the highest SNR estimate ($16.89dB$) as it directly measures signal power during speech activity versus noise power during silence—appropriate for non-stationary speech signals. The frequency-band method ($9.94~dB$) underestimates SNR because it includes both speech and inter-syllable silence in its ``signal'' region. The peaks-versus-floor method ($2.77~dB$) is unreliable for speech as the spectral envelope lacks the sharp peaks this method requires.
+The time-domain envelope method yielded the highest SNR estimate ($16.89dB$) as it directly measures signal power during speech activity versus noise power during silence—appropriate for non-stationary speech signals. 
+
+The frequency-band method ($9.94dB$) underestimates SNR because it includes both speech and inter-syllable silence in its ``signal'' region. The peaks-versus-floor method ($2.77dB$) is unreliable for speech as the spectral envelope lacks the sharp peaks this method requires.
 
 Phase optimisation provided a measured amplitude improvement of $1.52\times$ compared to $\phi = 0$, corresponding to a 3.64~dB power increase. This confirms that the initial arbitrary phase choice was suboptimal and that carrier phase recovery is essential for maximising demodulated signal quality.
 
@@ -1783,12 +1785,28 @@ The custom implementations of both FIR convolution and IIR filtering demonstrate
 
 \section{References}
 
+[1] \href{https://uk.mathworks.com/help/signal/ref/spectrogram.html}{``Spectrogram using short-time Fourier transform - MATLAB spectrogram - MathWorks United Kingdom,” \textit{uk.mathworks.com}}
+
+[2] \href{https://uk.mathworks.com/help/signal/ug/discrete-fourier-transform.html}{``Discrete Fourier Transform - MATLAB \& Simulink - MathWorks United Kingdom,'' \textit{uk.mathworks.com}}
+
+[3] \href{https://doi.org/10.2991/iccasm.2012.361}{H. Chen and L. Wang, ``Software and Hardware Implementation of IIR Based on MatlabaAcceldsp,” \textit{Proceedings of the 2nd International Conference on Computer Application and System Modeling, 2012}}
+
+[4] \href{https://doi.org/10.1093/imamci/15.2.185}{L. Pronzato, ``A generalized golden-section algorithm for line search,'' \textit{IMA Journal of Mathematical Control and Information}, vol. 15, no. 2, pp. 185--214, Jun. 1998}
+
 \newpage
 
 \section{Appendix}
 
+\href{https://github.com/SahasT23/EEE3030_ML_DSP/tree/main/EEE3030_Assignments}{Github Link for accessing the code}
+
 Include some flowcharts for code design if possible.
 Include entire code listings if possible or split for the tasks. (code snippet for task 1, task 2 etc.)
 Include conv.m and iir filter design code.
+
+Code needs to be split up.
+
+Add file structure for the code.
+
+Need to update 
 
 \end{document}
