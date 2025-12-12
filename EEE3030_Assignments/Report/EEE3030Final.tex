@@ -30,6 +30,7 @@
 
 \begin{abstract}
 This report presents the demodulation of a double-sideband suppressed-carrier (DSB-SC) amplitude modulated signal to recover a three-letter spoken message. Through time and frequency domain analysis, the carrier frequency was identified as 16~kHz with a message bandwidth of 4~kHz. A custom 159-tap FIR bandpass filter, designed using the impulse response truncation method with Hamming windowing, achieved 53.64~dB stopband attenuation and improved the signal-to-noise ratio by 64.39~dB. Carrier recovery was performed using square-law detection, and coherent demodulation was completed with a 4th-order Butterworth IIR lowpass filter. Phase optimisation at $120^\circ$ maximised the demodulated signal amplitude, yielding a final SNR of 16.89~dB and successful recovery of the message ``KVH''.
+Code available here:\href{https://github.com/SahasT23/EEE3030_ML_DSP/tree/main/EEE3030_Assignments}{Github Link for accessing the code}
 \end{abstract}
 
 %----------------------------------------------------------------------------------------
@@ -560,7 +561,7 @@ h_bp = h_windowed;  % Final bandpass filter coefficients stored for later
 The code first defines filter specifications derived from Task 1 analysis ($f_c$, $f_{min}$, $f_{max}$, stopband and cutoff frequencies). The ideal bandpass impulse response is computed using the sinc-subtraction method, then windowed with the Hamming function to produce the final coefficients.
 
 \textbf{Results and Discussion}\\
-The code outputs are shown in \textbf{Figures X and Y} for verification.
+The code outputs are shown below for verification.
 
 \begin{figure}[H]
     \centering
@@ -1534,7 +1535,7 @@ In the frequency domain: the baseband (0--4 kHz) is preserved with only $-0.2$ d
 
 \begin{figure}[H]
     \centering
-    \includegraphics[scale=0.3]{T4SNRAndPowerTermOutput.png}
+    \includegraphics[scale=0.36]{T4SNRAndPowerTermOutput.png}
     \caption{Terminal output showing the SNR and power improvements after applying the lowpass filter}
     \label{fig:SNRPowerTerm}
 \end{figure}
@@ -1547,7 +1548,17 @@ Terminal output confirms:
   \item SNR: $-2.26 \rightarrow 15.09$ dB ($+17.35$ dB improvement)
 \end{itemize}
 
-The final 15 dB SNR corresponds to signal power $\sim$32$\times$ noise power. This matches AM radio quality \- intelligible speech but with audible background noise. The negative pre-filter SNR ($-2.26$ dB) indicates the $2f_c$ component initially dominated; after filtering, the message clearly emerges. Combined with the FIR bandpass stage (64 dB improvement), the complete demodulation chain achieves $>80$ dB total noise reduction from the original signal.
+The final $15dB$ SNR corresponds to signal power $\sim$32$\times$ noise power. This matches AM radio quality \- intelligible speech but with audible background noise. The negative pre-filter SNR ($-2.26$ dB) indicates the $2f_c$ component initially dominated; after filtering, the message clearly emerges. Combined with the FIR bandpass stage (64 dB improvement), the complete demodulation chain achieves $>80$ dB total noise reduction from the original signal.
+
+For further viewing, the figure below shows the overlayed version:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.17]{LPFForMixedSig.png}
+    \caption{Overlayed signal showing the effects of the low-pass filter}
+    \label{fig:LPFMixedSig}
+\end{figure}
+
 
 \subsection{Task 5}
 
@@ -1793,20 +1804,8 @@ The custom implementations of both FIR convolution and IIR filtering demonstrate
 
 [4] \href{https://doi.org/10.1093/imamci/15.2.185}{L. Pronzato, ``A generalized golden-section algorithm for line search,'' \textit{IMA Journal of Mathematical Control and Information}, vol. 15, no. 2, pp. 185--214, Jun. 1998}
 
-\newpage
-
 \section{Appendix}
 
 \href{https://github.com/SahasT23/EEE3030_ML_DSP/tree/main/EEE3030_Assignments}{Github Link for accessing the code}
-
-Include some flowcharts for code design if possible.
-Include entire code listings if possible or split for the tasks. (code snippet for task 1, task 2 etc.)
-Include conv.m and iir filter design code.
-
-Code needs to be split up.
-
-Add file structure for the code.
-
-Need to update 
 
 \end{document}
