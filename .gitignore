@@ -1,5 +1,6 @@
 # Ignore whole folders
 .vscode/
+OldStuff/
 
 # Ignore LaTeX build files everywhere
 *.aux
